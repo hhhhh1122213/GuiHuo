@@ -1,0 +1,35 @@
+package com.ghostfire.controller;
+
+import cn.dev33.satoken.stp.StpUtil;
+import com.ghostfire.common.Result;
+import com.ghostfire.service.UserLikeService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api/like")
+@RequiredArgsConstructor
+public class LikeController {
+
+    private final UserLikeService userLikeService;
+
+    @PostMapping
+    public Result<?> like(@RequestParam Long targetId, @RequestParam Integer targetType) {
+        long userId = StpUtil.getLoginIdAsLong();
+        userLikeService.like(userId, targetId, targetType);
+        return Result.ok();
+    }
+
+    @DeleteMapping
+    public Result<?> unlike(@RequestParam Long targetId, @RequestParam Integer targetType) {
+        long userId = StpUtil.getLoginIdAsLong();
+        userLikeService.unlike(userId, targetId, targetType);
+        return Result.ok();
+    }
+
+    @GetMapping("/check")
+    public Result<Boolean> check(@RequestParam Long targetId, @RequestParam Integer targetType) {
+        long userId = StpUtil.getLoginIdAsLong();
+        return Result.ok(userLikeService.isLiked(userId, targetId, targetType));
+    }
+}
