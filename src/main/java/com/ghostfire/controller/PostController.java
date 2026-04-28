@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.ghostfire.common.Result;
 import com.ghostfire.dto.PostDto;
 import com.ghostfire.entity.Post;
+import com.ghostfire.service.DraftService;
 import com.ghostfire.service.PostService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -16,6 +17,7 @@ import org.springframework.web.bind.annotation.*;
 public class PostController {
 
     private final PostService postService;
+    private DraftService draftService;
 
     @GetMapping("/list")
     public Result<Page<Post>> list(
@@ -47,6 +49,7 @@ public class PostController {
 
     @PostMapping("/create")
     public Result<?> create(@Valid @RequestBody PostDto dto) {
+        System.out.println("我被调用了");
         long userId = StpUtil.getLoginIdAsLong();
         Post post = new Post();
         post.setCategoryId(dto.getCategoryId());

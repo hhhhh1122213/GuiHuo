@@ -12,7 +12,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(NotLoginException.class)
     public Result<?> handleNotLogin(NotLoginException e) {
-        return Result.fail(401, "请先登录");
+        return Result.fail(401, e.getMessage());
     }
 
     @ExceptionHandler(NotPermissionException.class)

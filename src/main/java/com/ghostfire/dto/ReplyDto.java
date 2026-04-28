@@ -11,6 +11,8 @@ public class ReplyDto {
 
     private Long parentId;
 
+    private Long replyUserId;
+
     @NotBlank(message = "回复内容不能为空")
     private String content;
 }

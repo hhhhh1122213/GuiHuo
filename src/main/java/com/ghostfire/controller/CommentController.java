@@ -25,8 +25,9 @@ public class CommentController {
 
     @PostMapping("/create")
     public Result<?> create(@Valid @RequestBody ReplyDto dto) {
+        System.out.println("我被调用了");
         long userId = StpUtil.getLoginIdAsLong();
-        Comment comment = commentService.addComment(dto.getPostId(), userId, dto.getParentId(), null, dto.getContent());
+        Comment comment = commentService.addComment(dto.getPostId(), userId, dto.getParentId(), dto.getReplyUserId(), dto.getContent());
         return Result.ok(comment);
     }
 
