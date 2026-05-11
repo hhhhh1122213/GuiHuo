@@ -1,10 +1,10 @@
 server:
-  port: 8181
+  port: 8080
 
 spring:
   datasource:
     driver-class-name: org.postgresql.Driver
-    url: jdbc:postgresql://localhost:5432/postgres
+    url: jdbc:postgresql://localhost:5432/Forum use only
     username: postgres
     password: 123456
   servlet:
@@ -17,7 +17,7 @@ spring:
       # Redis数据库索引（默认为0）
       database: 1
       # Redis服务器地址
-      host: 127.0.0.1
+      host: localhost
       # Redis服务器连接端口
       port: 6379
       # Redis服务器连接密码（默认为空）

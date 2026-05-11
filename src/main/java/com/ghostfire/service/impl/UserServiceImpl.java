@@ -66,4 +66,19 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     public User getByUsername(String username) {
         return getOne(new LambdaQueryWrapper<User>().eq(User::getUsername, username));
     }
+
+    @Override
+    public User changePassword(long id, String oldPassword, String newPassword) {
+        User user = getById(id);
+        if(user == null){
+            throw new RuntimeException("用户不存在");
+        }
+        if (!BCrypt.checkpw(oldPassword, user.getPassword())) {
+            throw new RuntimeException("密码错误");
+        }
+        user.setPassword(BCrypt.hashpw(newPassword,BCrypt.gensalt()));
+        save(user);
+        return user;
+    }
+
 }

@@ -10,4 +10,6 @@ public interface CommentService extends IService<Comment> {
     List<Comment> listByPostId(Long postId);
 
     Comment addComment(Long postId, Long userId, Long parentId, Long replyUserId, String content);
+
+    void deleteComment(Comment comment);
 }

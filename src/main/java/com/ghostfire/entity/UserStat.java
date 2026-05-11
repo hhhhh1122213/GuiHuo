@@ -14,4 +14,9 @@ public class UserStat {
     private Integer postCount;
     private Integer likeCount;
     private Integer signCount;
+    private Integer boastCount;
+    private Integer boastWinCount;
+    private Long boastWinTotal;
+    private Long boastBestWin;
+    private Long boastWorstLoss;
 }

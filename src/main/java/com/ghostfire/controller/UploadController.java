@@ -19,10 +19,18 @@ public class UploadController {
     @Value("${app.upload-path}")
     private String uploadPath;
 
+    private static final java.util.Set<String> ALLOWED_EXTENSIONS = java.util.Set.of("png", "jpg", "jpeg", "gif");
+
     @PostMapping("/image")
     public Result<?> image(@RequestParam("file") MultipartFile file) throws IOException {
         String originalName = file.getOriginalFilename();
+        if (originalName == null || originalName.isBlank()) {
+            return Result.fail("文件名不能为空");
+        }
         String ext = FileUtil.extName(originalName);
+        if (ext == null || !ALLOWED_EXTENSIONS.contains(ext.toLowerCase())) {
+            return Result.fail("仅支持 png/jpg/jpeg/gif 格式");
+        }
         String newName = IdUtil.fastSimpleUUID() + "." + ext;
         String dateDir = cn.hutool.core.date.DateUtil.today();
         File dir = new File(uploadPath + "/" + dateDir);

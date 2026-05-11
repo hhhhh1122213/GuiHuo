@@ -11,7 +11,6 @@ public class Category {
     @TableId(type = IdType.AUTO)
     private Long id;
     private String name;
-    private String icon;
     private String description;
     private Integer sortOrder;
 

@@ -1,0 +1,47 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/compose-spec/compose-schema/master/compose-spec.json
+services:
+  # ==================== Spring Boot 应用 ====================
+  app:
+    # 根目录下的 Dockerfile 构建镜像
+    build: .
+    # 映射端口：宿主机端口:容器端口
+    ports:
+      - "8080:8080"
+    # 依赖 postgres 和 redis 先启动
+    depends_on:
+      - postgres
+      - redis
+    # 注入环境变量，Spring Boot 会自动读取这些配置
+    environment:
+      # PostgreSQL 数据库连接地址（使用 docker 内部服务名 postgres）
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/ghostfire
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: 123456
+      # Redis 连接地址（使用 docker 内部服务名 redis）
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+
+  # ==================== PostgreSQL 数据库 ====================
+  postgres:
+    image: postgres:16
+    environment:
+      # 初始化时自动创建的数据库名、用户名、密码
+      POSTGRES_DB: ghostfire
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 123456
+    ports:
+      - "5432:5432"
+    # 数据持久化，容器删除后数据不丢失
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  # ==================== Redis 缓存 ====================
+  # 使用 alpine 精简版，体积小启动快
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+# 声明命名卷，用于持久化 PostgreSQL 数据
+volumes:
+  pgdata:

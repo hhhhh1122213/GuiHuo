@@ -1,15 +1,23 @@
 package com.ghostfire.controller;
 
 import cn.dev33.satoken.stp.StpUtil;
+import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.ghostfire.common.Result;
 import com.ghostfire.dto.PostDto;
 import com.ghostfire.entity.Post;
-import com.ghostfire.service.DraftService;
 import com.ghostfire.service.PostService;
+import com.ghostfire.vo.PostMapper;
+import com.ghostfire.vo.PostDetailVO;
+import com.ghostfire.vo.PostSummaryVO;
+import com.ghostfire.vo.VoEnricher;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/posts")
@@ -17,61 +25,69 @@ import org.springframework.web.bind.annotation.*;
 public class PostController {
 
     private final PostService postService;
-    private DraftService draftService;
+    private final PostMapper postMapper;
+    private final VoEnricher voEnricher;
 
     @GetMapping("/list")
-    public Result<Page<Post>> list(
+    public Result<IPage<PostSummaryVO>> list(
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(required = false) Long categoryId) {
-        if (categoryId != null) {
-            return Result.ok(postService.pageByCategory(categoryId, page, size));
-        }
-        return Result.ok(postService.pageLatest(page, size));
+        Page<Post> p = categoryId != null
+                ? postService.pageByCategory(categoryId, page, size)
+                : postService.pageLatest(page, size);
+        List<PostSummaryVO> vos = p.getRecords().stream().map(post -> {
+            PostSummaryVO vo = postMapper.toSummary(post);
+            voEnricher.enrich(vo, post);
+            return vo;
+        }).toList();
+        return Result.ok(postMapper.toSummaryPage(p, vos));
     }
 
     @GetMapping("/essence")
-    public Result<Page<Post>> essence(
+    public Result<IPage<PostSummaryVO>> essence(
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size) {
-        return Result.ok(postService.pageEssence(page, size));
+        Page<Post> p = postService.pageEssence(page, size);
+        List<PostSummaryVO> vos = p.getRecords().stream().map(post -> {
+            PostSummaryVO vo = postMapper.toSummary(post);
+            voEnricher.enrich(vo, post);
+            return vo;
+        }).toList();
+        return Result.ok(postMapper.toSummaryPage(p, vos));
     }
 
     @GetMapping("/detail/{id}")
-    public Result<Post> detail(@PathVariable Long id) {
-        postService.addViewCount(id);
+    public Result<PostDetailVO> detail(@PathVariable Long id) {
         Post post = postService.getById(id);
         if (post == null) {
             return Result.fail("帖子不存在");
         }
-        return Result.ok(post);
+        postService.addViewCount(id);
+        PostDetailVO vo = postMapper.toDetail(post);
+        voEnricher.enrich(vo, post);
+        return Result.ok(vo);
     }
 
     @PostMapping("/create")
     public Result<?> create(@Valid @RequestBody PostDto dto) {
-        System.out.println("我被调用了");
         long userId = StpUtil.getLoginIdAsLong();
-        Post post = new Post();
-        post.setCategoryId(dto.getCategoryId());
-        post.setUserId(userId);
-        post.setTitle(dto.getTitle());
-        post.setContent(dto.getContent());
-        post.setViewCount(0);
-        post.setLikeCount(0);
-        post.setCommentCount(0);
-        post.setIsTop(false);
-        post.setIsEssence(false);
-        post.setStatus(1);
-        postService.save(post);
+        Post post = postService.createPost(userId, dto);
         return Result.ok(post);
     }
 
     @GetMapping("/search")
-    public Result<Page<Post>> search(
-            @RequestParam String keyword,
+    public Result<IPage<PostSummaryVO>> search(
+            @RequestParam @NotBlank(message = "搜索关键词不能为空") @Size(max = 50, message = "搜索关键词不能超过50个字符") String keyword,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size) {
-        return Result.ok(postService.search(keyword, page, size));
+        Page<Post> p = postService.search(keyword, page, size);
+        List<PostSummaryVO> vos = p.getRecords().stream().map(post -> {
+            PostSummaryVO vo = postMapper.toSummary(post);
+            voEnricher.enrich(vo, post);
+            return vo;
+        }).toList();
+        return Result.ok(postMapper.toSummaryPage(p, vos));
     }
 
     @DeleteMapping("/{id}")
@@ -84,8 +100,7 @@ public class PostController {
         if (!post.getUserId().equals(userId)) {
             return Result.fail("无权删除");
         }
-        post.setStatus(0);
-        postService.updateById(post);
+        postService.deletePost(post, userId);
         return Result.ok();
     }
 }

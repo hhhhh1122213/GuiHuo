@@ -23,7 +23,8 @@ public class SaTokenConfigure implements WebMvcConfigurer {
                     "/api/posts/detail/**",    // 帖子详情
                     "/api/posts/search",      // 搜索帖子
                     "/api/category/list",     // 分类列表
-                    "/api/comments/list"      // 评论列表
+                    "/api/comments/list",     // 评论列表
+                    "/api/tags/list"          // 标签列表
                 )
                 .check(r -> StpUtil.checkLogin());
 

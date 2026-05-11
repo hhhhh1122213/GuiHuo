@@ -3,17 +3,17 @@ package com.ghostfire.controller;
 import cn.dev33.satoken.stp.StpUtil;
 import com.ghostfire.common.Result;
 import com.ghostfire.dto.LoginDto;
+import com.ghostfire.dto.PasswordDto;
 import com.ghostfire.dto.RegisterDto;
 import com.ghostfire.entity.User;
 import com.ghostfire.entity.UserStat;
 import com.ghostfire.service.UserService;
 import com.ghostfire.service.UserStatService;
+import com.ghostfire.vo.AuthInfoMapper;
+import com.ghostfire.vo.AuthInfoVO;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.HashMap;
-import java.util.Map;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -22,10 +22,10 @@ public class AuthController {
 
     private final UserService userService;
     private final UserStatService userStatService;
+    private final AuthInfoMapper authInfoMapper;
 
     @PostMapping("/login")
     public Result<?> login(@Valid @RequestBody LoginDto dto) {
-        System.out.println("我登陆了");
         User user = userService.login(dto.getUsername(), dto.getPassword());
         StpUtil.login(user.getId());
         return Result.ok(StpUtil.getTokenInfo());
@@ -44,15 +44,24 @@ public class AuthController {
     }
 
     @GetMapping("/info")
-    public Result<?> info() {
-        System.out.println("请求进来了");
+    public Result<AuthInfoVO> info() {
         long userId = StpUtil.getLoginIdAsLong();
         User user = userService.getById(userId);
-        user.setPassword(null);
+        if (user == null) {
+            return Result.fail("用户不存在");
+        }
         UserStat stat = userStatService.getById(userId);
-        Map<String, Object> result = new HashMap<>();
-        result.put("user", user);
-        result.put("stat", stat);
-        return Result.ok(result);
+
+        AuthInfoVO vo = authInfoMapper.toVO(user);
+        authInfoMapper.enrich(vo, stat);
+
+        return Result.ok(vo);
     }
+    @PostMapping("/password")
+    public Result<?> changePassword(@Valid @RequestBody PasswordDto dto) {
+        long userId = StpUtil.getLoginIdAsLong();
+        userService.changePassword(userId, dto.getOldPassword(), dto.getNewPassword());
+        return Result.ok();
+    }
+
 }

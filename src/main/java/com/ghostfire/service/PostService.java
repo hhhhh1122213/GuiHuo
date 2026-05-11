@@ -2,6 +2,7 @@ package com.ghostfire.service;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.IService;
+import com.ghostfire.dto.PostDto;
 import com.ghostfire.entity.Post;
 
 public interface PostService extends IService<Post> {
@@ -15,4 +16,8 @@ public interface PostService extends IService<Post> {
     Page<Post> search(String keyword, int page, int size);
 
     void addViewCount(Long postId);
+
+    Post createPost(Long userId, PostDto dto);
+
+    void deletePost(Post post, Long userId);
 }

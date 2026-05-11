@@ -14,6 +14,10 @@ public class Boast {
     private Long userId;
     private String title;
     private String image;
+    private String optionOne;
+    private String optionTwo;
+    private Integer correctOption;
+    private Long stakeAmount;
     private Integer result;
     private LocalDateTime deadline;
 

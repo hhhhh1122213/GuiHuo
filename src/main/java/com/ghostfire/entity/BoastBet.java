@@ -15,6 +15,7 @@ public class BoastBet {
     private Long userId;
     private Integer optionType;
     private Long amount;
+    private Integer result;
 
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
