@@ -24,12 +24,18 @@ public class SaTokenConfigure implements WebMvcConfigurer {
                     "/api/posts/search",      // 搜索帖子
                     "/api/category/list",     // 分类列表
                     "/api/comments/list",     // 评论列表
-                    "/api/tags/list"          // 标签列表
+                    "/api/tags/list",         // 标签列表
+                    "/api/users/*",           // 用户主页（公开）
+                    "/api/users/*/posts",     // 用户帖子列表
+                    "/api/boast/list",        // 吹牛列表
+                    "/api/boast/*",           // 吹牛详情
+                    "/api/medal/list",        // 勋章列表
+                    "/api/ranking/coin",      // 金币排行
+                    "/api/ranking/like",      // 获赞排行
+                    "/api/ranking/post",       // 发帖排行
+                "/api/notifications/subscribe"  // SSE 订阅（token 从 query 参数传）
                 )
                 .check(r -> StpUtil.checkLogin());
-
-            // 管理员接口 - 需要管理员角色
-            SaRouter.match("/api/admin/**", r -> StpUtil.checkRole("admin"));
         })).addPathPatterns("/**");
     }
 }
