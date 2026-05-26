@@ -49,7 +49,17 @@
       "Bash(echo \"exit: $?\")",
       "Bash(nc -z -w 5 47.110.142.18 6379)",
       "Bash(powershell *)",
-      "Bash(sed 's/\\\\.java$//')"
+      "Bash(sed 's/\\\\.java$//')",
+      "Bash(sed 's/.*@//')",
+      "Bash(sed 's/Mapping.*//')",
+      "Bash(xargs -I {} bash -c 'echo \"$\\(basename {} .java\\): $\\(grep @TableName {} | sed \"s/.*\\\\\"\\\\\\(.*\\\\\\)\\\\\".*/\\\\1/\"\\)\"')",
+      "Bash(grep -oP '`\\\\w+`' \"docs/数据库字段详细设计.md\")",
+      "Bash(psql *)",
+      "Bash(docker exec *)",
+      "Bash(python3 -m json.tool)",
+      "Bash(\"/e/RabbitMQ/rabbitmq_server-4.2.5/sbin/rabbitmqctl.bat\" status *)",
+      "Bash(/e/RabbitMQ/rabbitmq_server-4.2.5/sbin/rabbitmq-server.bat *)",
+      "Bash(/e/RabbitMQ/rabbitmq_server-4.2.5/sbin/rabbitmq-service.bat install *)"
     ]
   }
 }

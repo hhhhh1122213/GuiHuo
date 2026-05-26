@@ -8,12 +8,14 @@ import com.ghostfire.common.Constant;
 import com.ghostfire.dto.PostDto;
 import com.ghostfire.entity.Post;
 import com.ghostfire.entity.UserStat;
-import com.ghostfire.entity.UserWalletLog;
 import com.ghostfire.mapper.PostMapper;
+import com.ghostfire.service.MedalService;
+import com.ghostfire.service.PostTagService;
 import com.ghostfire.service.PostService;
+import com.ghostfire.service.RankingService;
 import com.ghostfire.service.UserStatService;
-import com.ghostfire.service.UserWalletLogService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,7 +24,12 @@ import org.springframework.transaction.annotation.Transactional;
 public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements PostService {
 
     private final UserStatService userStatService;
-    private final UserWalletLogService userWalletLogService;
+    private final MedalService medalService;
+    private final RankingService rankingService;
+    private final PostTagService postTagService;
+    private final RedisTemplate<String, Object> redisTemplate;
+
+    private static final String VIEW_COUNT_PREFIX = "post:views:";
 
     @Override
     public Page<Post> pageByCategory(Long categoryId, int page, int size) {
@@ -33,6 +40,11 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements Po
                 .orderByDesc(Post::getIsTop)
                 .orderByDesc(Post::getCreateTime);
         return page(p, w);
+    }
+
+    @Override
+    public Page<Post> pageByTag(Long tagId, int page, int size) {
+        return baseMapper.selectByTag(tagId, new Page<>(page, size));
     }
 
     @Override
@@ -58,21 +70,18 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements Po
     @Override
     public Page<Post> search(String keyword, int page, int size) {
         Page<Post> p = new Page<>(page, size);
-        LambdaQueryWrapper<Post> w = new LambdaQueryWrapper<Post>()
-                .eq(Post::getStatus, Constant.POST_STATUS_NORMAL)
-                .and(wr -> wr.like(Post::getTitle, keyword)
-                        .or()
-                        .like(Post::getContent, keyword))
-                .orderByDesc(Post::getCreateTime);
-        return page(p, w);
+        return baseMapper.searchFullText(keyword, p);
     }
 
     @Override
     public void addViewCount(Long postId) {
-        getBaseMapper().update(null,
-                new LambdaUpdateWrapper<Post>()
-                        .eq(Post::getId, postId)
-                        .setSql("view_count = view_count + 1"));
+        redisTemplate.opsForValue().increment(VIEW_COUNT_PREFIX + postId);
+    }
+
+    @Override
+    public long getViewCountDelta(Long postId) {
+        Object val = redisTemplate.opsForValue().get(VIEW_COUNT_PREFIX + postId);
+        return val != null ? Long.parseLong(val.toString()) : 0;
     }
 
     @Override
@@ -90,8 +99,9 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements Po
         post.setIsEssence(false);
         post.setStatus(Constant.POST_STATUS_NORMAL);
         save(post);
+        postTagService.replacePostTags(post.getId(), dto.getTags());
 
-        // 先确保 UserStat 存在
+        // 确保 UserStat 存在
         UserStat userStat = userStatService.getById(userId);
         if (userStat == null) {
             userStat = new UserStat();
@@ -100,22 +110,26 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements Po
             userStat.setPostCount(0);
             userStat.setLikeCount(0);
             userStat.setSignCount(0);
-            userStatService.save(userStat);
+            userStat.setStreakCount(0);
+            try {
+                userStatService.save(userStat);
+            } catch (org.springframework.dao.DuplicateKeyException e) {
+                // 并发创建时忽略，后续原子 SQL 更新不受影响
+            }
         }
-        // 原子更新金币和发帖数
+        // 加金币 + 写流水 + 更新发帖数
+        userStatService.addCoin(userId, Constant.COIN_POST_REWARD, Constant.WALLET_POST, post.getId());
         userStatService.getBaseMapper().update(null,
                 new LambdaUpdateWrapper<UserStat>()
                         .eq(UserStat::getUserId, userId)
-                        .setSql("coin = coin + 10")
                         .setSql("post_count = post_count + 1"));
-
-        UserStat updatedStat = userStatService.getById(userId);
-        UserWalletLog walletLog = new UserWalletLog();
-        walletLog.setUserId(userId);
-        walletLog.setAmount(10L);
-        walletLog.setCurrentBalance(updatedStat != null ? updatedStat.getCoin() : 10L);
-        walletLog.setType(Constant.WALLET_POST);
-        userWalletLogService.save(walletLog);
+        // 更新发帖排行榜
+        UserStat updated = userStatService.getById(userId);
+        if (updated != null) {
+            rankingService.updateScore(RankingService.RANK_POST, userId,
+                    updated.getPostCount() != null ? updated.getPostCount() : 0);
+        }
+        medalService.checkAutoAward(userId);
 
         return post;
     }
@@ -125,10 +139,27 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements Po
     public void deletePost(Post post, Long userId) {
         post.setStatus(Constant.POST_STATUS_DELETED);
         updateById(post);
+        userStatService.getBaseMapper().update(null,
+                new LambdaUpdateWrapper<UserStat>()
+                        .eq(UserStat::getUserId, userId)
+                        .setSql("post_count = GREATEST(post_count - 1, 0)"));
         UserStat userStat = userStatService.getById(userId);
-        if (userStat != null && userStat.getPostCount() > 0) {
-            userStat.setPostCount(userStat.getPostCount() - 1);
-            userStatService.updateById(userStat);
+        if (userStat != null) {
+            rankingService.updateScore(RankingService.RANK_POST, userId,
+                    userStat.getPostCount() != null ? userStat.getPostCount() : 0);
         }
+    }
+
+    @Override
+    @Transactional
+    public void editPost(long id, PostDto dto, Post post) {
+        if (dto.getTitle() != null)
+            post.setTitle(dto.getTitle());
+        if (dto.getContent() != null)
+            post.setContent(dto.getContent());
+        if (dto.getCategoryId() != null)
+            post.setCategoryId(dto.getCategoryId());
+        updateById(post);
+        postTagService.replacePostTags(id, dto.getTags());
     }
 }

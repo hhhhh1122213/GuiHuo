@@ -2,6 +2,7 @@ package com.ghostfire.controller;
 
 import cn.dev33.satoken.stp.StpUtil;
 import com.ghostfire.common.Result;
+import com.ghostfire.config.RateLimit;
 import com.ghostfire.dto.LoginDto;
 import com.ghostfire.dto.PasswordDto;
 import com.ghostfire.dto.RegisterDto;
@@ -24,6 +25,7 @@ public class AuthController {
     private final UserStatService userStatService;
     private final AuthInfoMapper authInfoMapper;
 
+    @RateLimit(key = "login", window = 300, maxCount = 5)
     @PostMapping("/login")
     public Result<?> login(@Valid @RequestBody LoginDto dto) {
         User user = userService.login(dto.getUsername(), dto.getPassword());
@@ -31,6 +33,7 @@ public class AuthController {
         return Result.ok(StpUtil.getTokenInfo());
     }
 
+    @RateLimit(key = "register", window = 3600, maxCount = 3)
     @PostMapping("/register")
     public Result<?> register(@Valid @RequestBody RegisterDto dto) {
         userService.register(dto);

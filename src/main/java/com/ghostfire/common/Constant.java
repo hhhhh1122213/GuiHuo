@@ -63,8 +63,10 @@ public interface Constant {
     String WALLET_POST = "POST";
     /** 点赞奖励 */
     String WALLET_LIKE = "LIKE";
-    /** 红包收支 */
-    String WALLET_RED_PACKET = "RED_PACKET";
+    /** 发红包扣款 */
+    String WALLET_RED_PACKET_SEND = "RED_PACKET_SEND";
+    /** 抢红包入账 */
+    String WALLET_RED_PACKET_RECEIVE = "RED_PACKET_RECEIVE";
     /** 吹牛下注 */
     String WALLET_BOAST_BET = "BOAST_BET";
     /** 吹牛获胜奖励 */
@@ -82,9 +84,31 @@ public interface Constant {
     /** 已读 */
     int MSG_READ = 1;
 
+    /** 消息类型 */
+    /** 私信 */
+    int MSG_TYPE_PRIVATE = 1;
+    /** @我的动态 */
+    int MSG_TYPE_MENTION_POST = 2;
+    /** @我的评论 */
+    int MSG_TYPE_MENTION_COMMENT = 3;
+    /** 收到的赞 */
+    int MSG_TYPE_LIKE = 4;
+    /** 关注通知 */
+    int MSG_TYPE_FOLLOW = 5;
+    /** 系统通知 */
+    int MSG_TYPE_SYSTEM = 6;
+
     /** 点赞目标类型 */
     /** 点赞帖子 */
     int LIKE_POST = 1;
     /** 点赞评论 */
     int LIKE_COMMENT = 2;
+
+    /** 金币奖励 */
+    /** 发帖奖励 */
+    long COIN_POST_REWARD = 10L;
+    /** 签到奖励 */
+    long COIN_CHECKIN_REWARD = 10L;
+    /** 点赞奖励 */
+    long COIN_LIKE_REWARD = 2L;
 }

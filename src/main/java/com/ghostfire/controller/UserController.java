@@ -2,6 +2,7 @@ package com.ghostfire.controller;
 
 import cn.dev33.satoken.stp.StpUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.ghostfire.common.Result;
 import com.ghostfire.dto.UserDto;
 import com.ghostfire.entity.*;
@@ -44,10 +45,6 @@ public class UserController {
         List<Long> medalIds = userMedals.stream().map(UserMedal::getMedalId).toList();
         List<Medal> medals = medalIds.isEmpty() ? List.of() : medalService.listByIds(medalIds);
 
-        List<Post> posts = postService.list(
-                new LambdaQueryWrapper<Post>().eq(Post::getUserId, id)
-        );
-
         UserProfileVO vo = new UserProfileVO();
         vo.setId(user.getId());
         vo.setNickname(user.getNickname());
@@ -60,6 +57,7 @@ public class UserController {
             vo.setPostCount(stat.getPostCount());
             vo.setLikeCount(stat.getLikeCount());
             vo.setSignCount(stat.getSignCount());
+            vo.setStreakCount(stat.getStreakCount());
             vo.setBoastCount(stat.getBoastCount());
             vo.setBoastWinCount(stat.getBoastWinCount());
             vo.setBoastWinTotal(stat.getBoastWinTotal());
@@ -74,13 +72,29 @@ public class UserController {
             return mv;
         }).toList());
 
-        vo.setPosts(posts.stream().map(p -> {
+        return Result.ok(vo);
+    }
+
+    /** 用户帖子列表（分页） */
+    @GetMapping("/{id}/posts")
+    public Result<Page<PostSummaryVO>> userPosts(
+            @PathVariable Long id,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        Page<Post> postPage = postService.page(
+                new Page<>(page, size),
+                new LambdaQueryWrapper<Post>()
+                        .eq(Post::getUserId, id)
+                        .eq(Post::getStatus, 1)
+                        .orderByDesc(Post::getCreateTime));
+        List<PostSummaryVO> vos = postPage.getRecords().stream().map(p -> {
             PostSummaryVO svo = postMapper.toSummary(p);
             voEnricher.enrich(svo, p);
             return svo;
-        }).toList());
-
-        return Result.ok(vo);
+        }).toList();
+        Page<PostSummaryVO> voPage = new Page<>(postPage.getCurrent(), postPage.getSize(), postPage.getTotal());
+        voPage.setRecords(vos);
+        return Result.ok(voPage);
     }
 
     @PutMapping("/profile")

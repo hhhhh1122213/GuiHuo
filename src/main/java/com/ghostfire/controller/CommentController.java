@@ -1,6 +1,7 @@
 package com.ghostfire.controller;
 
 import cn.dev33.satoken.stp.StpUtil;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.ghostfire.common.Result;
 import com.ghostfire.dto.ReplyDto;
 import com.ghostfire.entity.Comment;
@@ -12,7 +13,10 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/comments")
@@ -23,15 +27,42 @@ public class CommentController {
     private final CommentMapper commentMapper;
     private final VoEnricher voEnricher;
 
+    /** 评论列表（分页一级评论，子回复挂在父评论下） */
     @GetMapping("/list")
-    public Result<List<CommentVO>> list(@RequestParam Long postId) {
-        List<Comment> comments = commentService.listByPostId(postId);
-        List<CommentVO> vos = comments.stream().map(c -> {
-            CommentVO vo = commentMapper.toVO(c);
-            voEnricher.enrich(vo, c);
+    public Result<Page<CommentVO>> list(
+            @RequestParam Long postId,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        Page<Comment> topPage = commentService.pageTopLevel(postId, page, size);
+        List<Comment> topList = topPage.getRecords();
+
+        // 批量加载子回复
+        List<Long> parentIds = topList.stream().map(Comment::getId).toList();
+        List<Comment> children = commentService.listChildren(postId, parentIds);
+        Map<Long, List<Comment>> childrenMap = children.stream()
+                .collect(Collectors.groupingBy(Comment::getParentId));
+
+        // 组装 VO（批量富化避免 N+1）
+        List<Comment> allComments = new ArrayList<>(topList);
+        children.forEach(c -> { if (!allComments.contains(c)) allComments.add(c); });
+        List<CommentVO> allVos = allComments.stream().map(commentMapper::toVO).toList();
+        voEnricher.enrichBatchComments(allVos, allComments);
+
+        Map<Long, CommentVO> voMap = new java.util.HashMap<>();
+        for (int i = 0; i < allComments.size(); i++) {
+            voMap.put(allComments.get(i).getId(), allVos.get(i));
+        }
+
+        List<CommentVO> vos = topList.stream().map(c -> {
+            CommentVO vo = voMap.get(c.getId());
+            List<Comment> childList = childrenMap.getOrDefault(c.getId(), List.of());
+            vo.setChildren(childList.stream().map(ch -> voMap.get(ch.getId())).toList());
             return vo;
         }).toList();
-        return Result.ok(vos);
+
+        Page<CommentVO> voPage = new Page<>(topPage.getCurrent(), topPage.getSize(), topPage.getTotal());
+        voPage.setRecords(vos);
+        return Result.ok(voPage);
     }
 
     @PostMapping("/create")

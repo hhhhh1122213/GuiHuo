@@ -2,6 +2,7 @@ package com.ghostfire.controller;
 
 import cn.dev33.satoken.stp.StpUtil;
 import com.ghostfire.common.Result;
+import com.ghostfire.config.RateLimit;
 import com.ghostfire.service.CheckInService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -15,6 +16,7 @@ public class CheckInController {
 
     private final CheckInService checkInService;
 
+    @RateLimit(key = "checkin", window = 86400, maxCount = 1)
     @PostMapping
     public Result<?> checkIn() {
         long userId = StpUtil.getLoginIdAsLong();

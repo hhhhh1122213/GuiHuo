@@ -11,8 +11,11 @@ services:
     depends_on:
       - postgres
       - redis
+      - rabbitmq
     # 注入环境变量，Spring Boot 会自动读取这些配置
     environment:
+      # 激活生产配置 profile
+      SPRING_PROFILES_ACTIVE: prod
       # PostgreSQL 数据库连接地址（使用 docker 内部服务名 postgres）
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/ghostfire
       SPRING_DATASOURCE_USERNAME: postgres
@@ -20,6 +23,9 @@ services:
       # Redis 连接地址（使用 docker 内部服务名 redis）
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
+      # RabbitMQ 连接地址（使用 docker 内部服务名 rabbitmq）
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
 
   # ==================== PostgreSQL 数据库 ====================
   postgres:
@@ -41,6 +47,16 @@ services:
     image: redis:7-alpine
     ports:
       - "6379:6379"
+
+  # ==================== RabbitMQ 消息队列 ====================
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
 
 # 声明命名卷，用于持久化 PostgreSQL 数据
 volumes:

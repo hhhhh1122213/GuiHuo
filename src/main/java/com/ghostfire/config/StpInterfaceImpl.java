@@ -21,23 +21,23 @@ public class StpInterfaceImpl implements StpInterface {
 
     @Override
     public List<String> getPermissionList(Object loginId, String loginType) {
-        User user = userService.getById((Long) loginId);
+        User user = userService.getById(Long.parseLong(loginId.toString()));
         if (user == null) {
             return Collections.emptyList();
         }
         List<String> permissions = new ArrayList<>();
-        if ("admin".equals(user.getRole())) {
-            permissions.add("admin");
-            permissions.add("user");
+        if ("ADMIN".equals(user.getRole())) {
+            permissions.add("ADMIN");
+            permissions.add("USER");
         } else {
-            permissions.add("user");
+            permissions.add("USER");
         }
         return permissions;
     }
 
     @Override
     public List<String> getRoleList(Object loginId, String loginType) {
-        User user = userService.getById((Long) loginId);
+        User user = userService.getById(Long.parseLong(loginId.toString()));
         if (user == null) {
             return Collections.emptyList();
         }

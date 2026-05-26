@@ -1,15 +1,14 @@
 package com.ghostfire.service.impl;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.ghostfire.common.Constant;
 import com.ghostfire.entity.UserCheckIn;
 import com.ghostfire.entity.UserStat;
-import com.ghostfire.entity.UserWalletLog;
 import com.ghostfire.mapper.UserCheckInMapper;
 import com.ghostfire.service.CheckInService;
+import com.ghostfire.service.MedalService;
 import com.ghostfire.service.UserStatService;
-import com.ghostfire.service.UserWalletLogService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
@@ -22,7 +21,7 @@ import java.time.LocalDate;
 public class CheckInServiceImpl extends ServiceImpl<UserCheckInMapper, UserCheckIn> implements CheckInService {
 
     private final UserStatService userStatService;
-    private final UserWalletLogService userWalletLogService;
+    private final MedalService medalService;
 
     @Override
     @Transactional
@@ -36,20 +35,19 @@ public class CheckInServiceImpl extends ServiceImpl<UserCheckInMapper, UserCheck
         } catch (DuplicateKeyException e) {
             throw new RuntimeException("今天已签到");
         }
-        // 原子更新用户金币和签到数
+        // 加金币 + 写流水 + 更新签到数
+        userStatService.addCoin(userId, Constant.COIN_CHECKIN_REWARD, Constant.WALLET_SIGN_IN, checkIn.getId());
         userStatService.getBaseMapper().update(null,
-                new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<UserStat>()
+                new LambdaUpdateWrapper<UserStat>()
                         .eq(UserStat::getUserId, userId)
-                        .setSql("coin = coin + 10")
                         .setSql("sign_count = sign_count + 1"));
-        // 读取更新后的余额写钱包流水
-        UserStat userStat = userStatService.getById(userId);
-        UserWalletLog walletLog = new UserWalletLog();
-        walletLog.setUserId(userId);
-        walletLog.setAmount(10L);
-        walletLog.setCurrentBalance(userStat != null ? userStat.getCoin() : 10L);
-        walletLog.setType(Constant.WALLET_SIGN_IN);
-        userWalletLogService.save(walletLog);
+        // 连续签到天数
+        boolean yesterdayCheckedIn = baseMapper.existsByUserAndDate(userId, today.minusDays(1));
+        userStatService.getBaseMapper().update(null,
+                new LambdaUpdateWrapper<UserStat>()
+                        .eq(UserStat::getUserId, userId)
+                        .setSql(yesterdayCheckedIn ? "streak_count = streak_count + 1" : "streak_count = 1"));
+        medalService.checkAutoAward(userId);
         return checkIn;
     }
 }

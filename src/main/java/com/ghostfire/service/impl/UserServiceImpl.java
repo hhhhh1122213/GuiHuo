@@ -5,6 +5,7 @@ import cn.dev33.satoken.secure.SaSecureUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.ghostfire.common.Constant;
+import com.ghostfire.config.BloomFilterHelper;
 import com.ghostfire.dto.RegisterDto;
 import com.ghostfire.entity.User;
 import com.ghostfire.entity.UserStat;
@@ -20,13 +21,19 @@ import org.springframework.transaction.annotation.Transactional;
 public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements UserService {
 
     private final UserStatService userStatService;
+    private final BloomFilterHelper bloomFilter;
+
+    private static final String BLOOM_USERNAMES = "bloom:usernames";
 
     @Override
     @Transactional
     public User register(RegisterDto dto) {
-        User exist = getByUsername(dto.getUsername());
-        if (exist != null) {
-            throw new RuntimeException("用户名已存在");
+        // 布隆过滤器说"可能存在"时才查库（false = 肯定不存在，可跳过）
+        if (bloomFilter.mightContain(BLOOM_USERNAMES, dto.getUsername())) {
+            User exist = getByUsername(dto.getUsername());
+            if (exist != null) {
+                throw new RuntimeException("用户名已存在");
+            }
         }
         User user = new User();
         user.setUsername(dto.getUsername());
@@ -35,6 +42,9 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         user.setRole("USER");
         user.setStatus(Constant.USER_STATUS_NORMAL);
         save(user);
+
+        // 注册成功，加入布隆过滤器
+        bloomFilter.add(BLOOM_USERNAMES, dto.getUsername());
 
         UserStat stat = new UserStat();
         stat.setUserId(user.getId());
@@ -77,7 +87,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
             throw new RuntimeException("密码错误");
         }
         user.setPassword(BCrypt.hashpw(newPassword,BCrypt.gensalt()));
-        save(user);
+        updateById(user);
         return user;
     }
 

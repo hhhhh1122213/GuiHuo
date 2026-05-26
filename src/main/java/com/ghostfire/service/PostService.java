@@ -9,6 +9,8 @@ public interface PostService extends IService<Post> {
 
     Page<Post> pageByCategory(Long categoryId, int page, int size);
 
+    Page<Post> pageByTag(Long tagId, int page, int size);
+
     Page<Post> pageLatest(int page, int size);
 
     Page<Post> pageEssence(int page, int size);
@@ -17,7 +19,11 @@ public interface PostService extends IService<Post> {
 
     void addViewCount(Long postId);
 
+    /** 获取 Redis 中未刷入 DB 的浏览量增量 */
+    long getViewCountDelta(Long postId);
+
     Post createPost(Long userId, PostDto dto);
 
     void deletePost(Post post, Long userId);
+    void editPost(long id, PostDto dto,Post  post);
 }
