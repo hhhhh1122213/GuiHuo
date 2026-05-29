@@ -37,3 +37,8 @@ app:
   upload-path: ${UPLOAD_PATH:E:/workspace/Ghost Fire Forum/uploads}
   allowed-origins: http://localhost:5173
   view-flush-interval: 30000
+
+wechat:
+  mini:
+    appId: ${WX_APP_ID:wx_demo_appid}
+    appSecret: ${WX_APP_SECRET:wx_demo_secret}
