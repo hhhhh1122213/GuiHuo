@@ -24,6 +24,10 @@ public class User {
     private String role;
     /** 状态：1=正常, 0=封禁 */
     private Integer status;
+    /** 用户来源：web / wechat */
+    private String source;
+    /** 微信 openid（仅微信用户） */
+    private String openid;
 
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
