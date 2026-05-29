@@ -33,7 +33,13 @@ public class SaTokenConfigure implements WebMvcConfigurer {
                     "/api/ranking/coin",      // 金币排行
                     "/api/ranking/like",      // 获赞排行
                     "/api/ranking/post",       // 发帖排行
-                "/api/notifications/subscribe"  // SSE 订阅（token 从 query 参数传）
+                    "/api/notifications/subscribe",  // SSE 订阅（token 从 query 参数传）
+                    "/api/mini/auth/wx-login",     // 微信登录
+                    "/api/mini/auth/logout",       // 登出
+                    "/api/mini/posts/list",        // 帖子列表
+                    "/api/mini/posts/*",           // 帖子详情
+                    "/api/mini/comments/list",     // 评论列表
+                    "/api/mini/user/*"             // 用户主页
                 )
                 .check(r -> StpUtil.checkLogin());
         })).addPathPatterns("/**");
