@@ -34,12 +34,11 @@ public class PostController {
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(required = false) Long categoryId,
-            @RequestParam(required = false) Long tagId) {
+            @RequestParam(required = false) Long tagId,
+            @RequestParam(defaultValue = "recommend") String sort) {
         Page<Post> p = tagId != null
                 ? postService.pageByTag(tagId, page, size)
-                : categoryId != null
-                ? postService.pageByCategory(categoryId, page, size)
-                : postService.pageLatest(page, size);
+                : postService.pageFeed(categoryId, page, size, sort);
         List<Post> posts = p.getRecords();
         List<PostSummaryVO> vos = posts.stream().map(postMapper::toSummary).toList();
         voEnricher.enrichBatch(vos, posts);
@@ -49,8 +48,9 @@ public class PostController {
     @GetMapping("/essence")
     public Result<IPage<PostSummaryVO>> essence(
             @RequestParam(defaultValue = "1") int page,
-            @RequestParam(defaultValue = "20") int size) {
-        Page<Post> p = postService.pageEssence(page, size);
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) Long categoryId) {
+        Page<Post> p = postService.pageEssence(categoryId, page, size);
         List<Post> posts = p.getRecords();
         List<PostSummaryVO> vos = posts.stream().map(postMapper::toSummary).toList();
         voEnricher.enrichBatch(vos, posts);
@@ -79,7 +79,7 @@ public class PostController {
         return Result.ok(post);
     }
 
-    @RateLimit(key = "search", window = 60, maxCount = 30)
+    @RateLimit(key = "search", maxCount = 30)
     @GetMapping("/search")
     public Result<IPage<PostSummaryVO>> search(
             @RequestParam @NotBlank(message = "搜索关键词不能为空") @Size(max = 50, message = "搜索关键词不能超过50个字符") String keyword,

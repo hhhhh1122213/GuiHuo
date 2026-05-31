@@ -27,6 +27,7 @@ public class UserController {
     private final MedalService medalService;
     private final UserMedalService userMedalService;
     private final PostService postService;
+    private final UserFollowService userFollowService;
     private final PostMapper postMapper;
     private final VoEnricher voEnricher;
 
@@ -62,6 +63,9 @@ public class UserController {
             vo.setBoastWinCount(stat.getBoastWinCount());
             vo.setBoastWinTotal(stat.getBoastWinTotal());
         }
+        vo.setFollowerCount(userFollowService.followerCount(id));
+        vo.setFollowingCount(userFollowService.followingCount(id));
+        vo.setFollowedByMe(StpUtil.isLogin() && userFollowService.isFollowing(StpUtil.getLoginIdAsLong(), id));
 
         vo.setMedals(medals.stream().map(m -> {
             UserProfileVO.MedalVO mv = new UserProfileVO.MedalVO();
@@ -73,6 +77,52 @@ public class UserController {
         }).toList());
 
         return Result.ok(vo);
+    }
+
+    @PostMapping("/{id}/follow")
+    public Result<?> follow(@PathVariable Long id) {
+        long userId = StpUtil.getLoginIdAsLong();
+        userFollowService.follow(userId, id);
+        return Result.ok();
+    }
+
+    @DeleteMapping("/{id}/follow")
+    public Result<?> unfollow(@PathVariable Long id) {
+        long userId = StpUtil.getLoginIdAsLong();
+        userFollowService.unfollow(userId, id);
+        return Result.ok();
+    }
+
+    @GetMapping("/{id}/followers")
+    public Result<List<com.ghostfire.vo.SimpleUserVO>> followers(@PathVariable Long id) {
+        return Result.ok(toSimpleUsers(userFollowService.listFollowerIds(id)));
+    }
+
+    @GetMapping("/{id}/following")
+    public Result<List<com.ghostfire.vo.SimpleUserVO>> following(@PathVariable Long id) {
+        return Result.ok(toSimpleUsers(userFollowService.listFolloweeIds(id)));
+    }
+
+    @GetMapping("/following/posts")
+    public Result<Page<PostSummaryVO>> followingPosts(
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        long userId = StpUtil.getLoginIdAsLong();
+        List<Long> followeeIds = userFollowService.listFolloweeIds(userId);
+        Page<Post> postPage = followeeIds.isEmpty()
+                ? new Page<>(page, size, 0)
+                : postService.page(
+                new Page<>(page, size),
+                new LambdaQueryWrapper<Post>()
+                        .in(Post::getUserId, followeeIds)
+                        .eq(Post::getStatus, 1)
+                        .orderByDesc(Post::getCreateTime));
+        List<Post> posts = postPage.getRecords();
+        List<PostSummaryVO> vos = posts.stream().map(postMapper::toSummary).toList();
+        voEnricher.enrichBatch(vos, posts);
+        Page<PostSummaryVO> voPage = new Page<>(postPage.getCurrent(), postPage.getSize(), postPage.getTotal());
+        voPage.setRecords(vos);
+        return Result.ok(voPage);
     }
 
     /** 用户帖子列表（分页） */
@@ -108,5 +158,18 @@ public class UserController {
         if (form.getAvatar() != null) user.setAvatar(form.getAvatar());
         userService.updateById(user);
         return Result.ok();
+    }
+
+    private List<com.ghostfire.vo.SimpleUserVO> toSimpleUsers(List<Long> userIds) {
+        if (userIds.isEmpty()) {
+            return List.of();
+        }
+        return userService.listByIds(userIds).stream().map(user -> {
+            com.ghostfire.vo.SimpleUserVO vo = new com.ghostfire.vo.SimpleUserVO();
+            vo.setId(user.getId());
+            vo.setNickname(user.getNickname());
+            vo.setAvatar(user.getAvatar());
+            return vo;
+        }).toList();
     }
 }

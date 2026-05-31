@@ -11,9 +11,13 @@ public interface PostService extends IService<Post> {
 
     Page<Post> pageByTag(Long tagId, int page, int size);
 
+    Page<Post> pageFeed(Long categoryId, int page, int size, String sort);
+
     Page<Post> pageLatest(int page, int size);
 
     Page<Post> pageEssence(int page, int size);
+
+    Page<Post> pageEssence(Long categoryId, int page, int size);
 
     Page<Post> search(String keyword, int page, int size);
 

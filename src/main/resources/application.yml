@@ -34,11 +34,11 @@ sa-token:
   is-log: false
 
 app:
-  upload-path: ${UPLOAD_PATH:E:/workspace/Ghost Fire Forum/uploads}
+  upload-path: ${UPLOAD_PATH:${user.dir}/uploads}
   allowed-origins: http://localhost:5173
   view-flush-interval: 30000
 
 wechat:
   mini:
-    appId: ${WX_APP_ID:wx_demo_appid}
-    appSecret: ${WX_APP_SECRET:wx_demo_secret}
+    appId: ${WX_APP_ID:wx79150c40bdf8c66b}
+    appSecret: ${WX_APP_SECRET:f2e79e3dc4c8c61812405fae86bd39af}

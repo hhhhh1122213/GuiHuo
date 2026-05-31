@@ -27,10 +27,13 @@ public class Message {
     /** 状态：0=未读, 1=已读 */
     private Integer status;
 
+    /** 发送方是否已删除该消息 */
     private Boolean fromDeleted;
 
+    /** 接收方是否已删除该消息 */
     private Boolean toDeleted;
 
+    /** 创建时间 */
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
 }

@@ -33,13 +33,7 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements Po
 
     @Override
     public Page<Post> pageByCategory(Long categoryId, int page, int size) {
-        Page<Post> p = new Page<>(page, size);
-        LambdaQueryWrapper<Post> w = new LambdaQueryWrapper<Post>()
-                .eq(Post::getCategoryId, categoryId)
-                .eq(Post::getStatus, Constant.POST_STATUS_NORMAL)
-                .orderByDesc(Post::getIsTop)
-                .orderByDesc(Post::getCreateTime);
-        return page(p, w);
+        return pageFeed(categoryId, page, size, "recommend");
     }
 
     @Override
@@ -49,22 +43,56 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements Po
 
     @Override
     public Page<Post> pageLatest(int page, int size) {
+        return pageFeed(null, page, size, "latest");
+    }
+
+    @Override
+    public Page<Post> pageFeed(Long categoryId, int page, int size, String sort) {
         Page<Post> p = new Page<>(page, size);
         LambdaQueryWrapper<Post> w = new LambdaQueryWrapper<Post>()
+                .eq(categoryId != null, Post::getCategoryId, categoryId)
+                .eq(Post::getStatus, Constant.POST_STATUS_NORMAL);
+        applyFeedSort(w, sort);
+        return page(p, w);
+    }
+
+    @Override
+    public Page<Post> pageEssence(int page, int size) {
+        return pageEssence(null, page, size);
+    }
+
+    @Override
+    public Page<Post> pageEssence(Long categoryId, int page, int size) {
+        Page<Post> p = new Page<>(page, size);
+        LambdaQueryWrapper<Post> w = new LambdaQueryWrapper<Post>()
+                .eq(Post::getIsEssence, true)
+                .eq(categoryId != null, Post::getCategoryId, categoryId)
                 .eq(Post::getStatus, Constant.POST_STATUS_NORMAL)
                 .orderByDesc(Post::getIsTop)
                 .orderByDesc(Post::getCreateTime);
         return page(p, w);
     }
 
-    @Override
-    public Page<Post> pageEssence(int page, int size) {
-        Page<Post> p = new Page<>(page, size);
-        LambdaQueryWrapper<Post> w = new LambdaQueryWrapper<Post>()
-                .eq(Post::getIsEssence, true)
-                .eq(Post::getStatus, Constant.POST_STATUS_NORMAL)
-                .orderByDesc(Post::getCreateTime);
-        return page(p, w);
+    private void applyFeedSort(LambdaQueryWrapper<Post> w, String sort) {
+        String normalized = sort == null ? "recommend" : sort.trim().toLowerCase();
+        switch (normalized) {
+            case "latest" -> w
+                    .orderByDesc(Post::getCreateTime)
+                    .orderByDesc(Post::getId);
+            case "hot" -> w
+                    .orderByDesc(Post::getIsTop)
+                    .orderByDesc(Post::getCommentCount)
+                    .orderByDesc(Post::getLikeCount)
+                    .orderByDesc(Post::getViewCount)
+                    .orderByDesc(Post::getCreateTime);
+            default -> w
+                    .orderByDesc(Post::getIsTop)
+                    .orderByDesc(Post::getIsEssence)
+                    .orderByDesc(Post::getCommentCount)
+                    .orderByDesc(Post::getLikeCount)
+                    .orderByDesc(Post::getViewCount)
+                    .orderByDesc(Post::getCreateTime);
+        }
     }
 
     @Override

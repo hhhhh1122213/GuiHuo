@@ -30,10 +30,9 @@ public class MiniPostController {
     public Result<IPage<PostSummaryVO>> list(
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size,
-            @RequestParam(required = false) Long categoryId) {
-        Page<Post> p = categoryId != null
-                ? postService.pageByCategory(categoryId, page, size)
-                : postService.pageLatest(page, size);
+            @RequestParam(required = false) Long categoryId,
+            @RequestParam(defaultValue = "recommend") String sort) {
+        Page<Post> p = postService.pageFeed(categoryId, page, size, sort);
         List<Post> posts = p.getRecords();
         List<PostSummaryVO> vos = posts.stream().map(postMapper::toSummary).toList();
         voEnricher.enrichBatch(vos, posts);

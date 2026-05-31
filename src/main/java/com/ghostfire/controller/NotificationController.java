@@ -15,6 +15,7 @@ import java.io.IOException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @Slf4j
 @RestController
@@ -26,6 +27,7 @@ public class NotificationController {
     private final MessageService messageService;
 
     @GetMapping("/subscribe")
+    @SuppressWarnings("AutoCloseableResource")
     public SseEmitter subscribe(@RequestParam String token) {
         Object loginId = StpUtil.getLoginIdByToken(token);
         if (loginId == null) {
@@ -47,33 +49,46 @@ public class NotificationController {
 
         // 心跳保活
         ScheduledExecutorService heartbeat = Executors.newSingleThreadScheduledExecutor();
-        heartbeat.scheduleAtFixedRate(() -> {
+        AtomicBoolean closed = new AtomicBoolean(false);
+
+        Runnable heartbeatTask = () -> {
+            if (closed.get()) return;
             try {
                 emitter.send(SseEmitter.event().comment("heartbeat"));
             } catch (IOException e) {
-                sseConnectionManager.remove(userId, emitter);
-                heartbeat.shutdown();
+                if (closed.compareAndSet(false, true)) {
+                    doClose(userId, emitter, heartbeat);
+                }
             }
-        }, 30, 30, TimeUnit.SECONDS);
+        };
+        heartbeat.scheduleAtFixedRate(heartbeatTask, 30, 30, TimeUnit.SECONDS);
 
         emitter.onCompletion(() -> {
-            sseConnectionManager.remove(userId, emitter);
-            heartbeat.shutdown();
+            if (closed.compareAndSet(false, true)) {
+                doClose(userId, emitter, heartbeat);
+            }
             log.debug("SSE 完成: userId={}", userId);
         });
 
         emitter.onTimeout(() -> {
-            sseConnectionManager.remove(userId, emitter);
-            heartbeat.shutdown();
+            if (closed.compareAndSet(false, true)) {
+                doClose(userId, emitter, heartbeat);
+            }
             log.debug("SSE 超时: userId={}", userId);
         });
 
         emitter.onError(e -> {
-            sseConnectionManager.remove(userId, emitter);
-            heartbeat.shutdown();
-            log.debug("SSE 错误: userId={}", userId, e);
+            if (closed.compareAndSet(false, true)) {
+                doClose(userId, emitter, heartbeat);
+            }
+            log.debug("SSE 连接已断开: userId={}", userId);
         });
 
         return emitter;
+    }
+
+    private void doClose(long userId, SseEmitter emitter, ScheduledExecutorService heartbeat) {
+        sseConnectionManager.remove(userId, emitter);
+        heartbeat.shutdown();
     }
 }
