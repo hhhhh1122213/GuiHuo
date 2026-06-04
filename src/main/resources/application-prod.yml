@@ -1,0 +1,30 @@
+# ==================== 生产/Docker 配置 ====================
+spring:
+  datasource:
+    driver-class-name: org.postgresql.Driver
+    url: jdbc:postgresql://${DB_HOST:postgres}:${DB_PORT:5432}/${DB_NAME:ghostfire}
+    username: ${DB_USER:postgres}
+    password: ${DB_PASSWORD:123456}
+  data:
+    redis:
+      database: ${REDIS_DB:1}
+      host: ${REDIS_HOST:redis}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 10s
+      lettuce:
+        pool:
+          max-active: 200
+          max-wait: -1ms
+          max-idle: 20
+          min-idle: 5
+  rabbitmq:
+    host: ${RABBITMQ_HOST:rabbitmq}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USER:guest}
+    password: ${RABBITMQ_PASS:guest}
+
+logging:
+  level:
+    com.ghostfire: WARN
+    org.mybatis: WARN
