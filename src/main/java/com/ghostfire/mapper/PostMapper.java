@@ -9,6 +9,8 @@ import org.apache.ibatis.annotations.Param;
 @Mapper
 public interface PostMapper extends BaseMapper<Post> {
 
+    Long searchFullTextCount(@Param("keyword") String keyword);
+
     Page<Post> searchFullText(@Param("keyword") String keyword, Page<Post> page);
 
     Page<Post> selectByTag(@Param("tagId") Long tagId, Page<Post> page);

@@ -50,11 +50,14 @@ class PostServiceImplTest {
     void search_delegatesToFullTextSearch() {
         Page<Post> mockPage = new Page<>(1, 20);
         when(postMapper.searchFullText(eq("Java"), any(Page.class))).thenReturn(mockPage);
+        when(postMapper.searchFullTextCount(eq("Java"))).thenReturn(5L);
 
         Page<Post> result = postService.search("Java", 1, 20);
 
         assertSame(mockPage, result);
+        assertEquals(5L, result.getTotal());
         verify(postMapper).searchFullText(eq("Java"), any(Page.class));
+        verify(postMapper).searchFullTextCount(eq("Java"));
     }
 
     @Test

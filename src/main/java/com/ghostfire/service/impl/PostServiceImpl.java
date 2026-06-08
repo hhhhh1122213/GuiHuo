@@ -32,6 +32,7 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements Po
     private static final String VIEW_COUNT_PREFIX = "post:views:";
 
     @Override
+
     public Page<Post> pageByCategory(Long categoryId, int page, int size) {
         return pageFeed(categoryId, page, size, "recommend");
     }
@@ -97,8 +98,10 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements Po
 
     @Override
     public Page<Post> search(String keyword, int page, int size) {
-        Page<Post> p = new Page<>(page, size);
-        return baseMapper.searchFullText(keyword, p);
+        Page<Post> p = new Page<>(page, size, false); // 跳过自动 count
+        p = baseMapper.searchFullText(keyword, p);
+        p.setTotal(baseMapper.searchFullTextCount(keyword)); // 手动查总数
+        return p;
     }
 
     @Override
