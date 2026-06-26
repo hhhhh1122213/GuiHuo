@@ -2,11 +2,14 @@ package com.ghostfire.service.impl;
 
 import com.ghostfire.dto.BoastDto;
 import com.ghostfire.entity.Boast;
+import com.ghostfire.entity.BoastBet;
 import com.ghostfire.entity.UserStat;
 import com.ghostfire.mapper.BoastMapper;
+import com.ghostfire.mapper.UserStatMapper;
 import com.ghostfire.service.BoastBetService;
 import com.ghostfire.service.MedalService;
 import com.ghostfire.service.UserStatService;
+import com.ghostfire.service.WalletService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -26,14 +29,16 @@ class BoastServiceImplTest {
 
     @Mock BoastMapper boastMapper;
     @Mock UserStatService userStatService;
+    @Mock UserStatMapper userStatMapper;
     @Mock MedalService medalService;
     @Mock BoastBetService boastBetService;
+    @Mock WalletService walletService;
 
     BoastServiceImpl boastService;
 
     @BeforeEach
     void setUp() {
-        boastService = new BoastServiceImpl(userStatService, medalService, boastBetService);
+        boastService = new BoastServiceImpl(userStatService, medalService, boastBetService, walletService);
         ReflectionTestUtils.setField(boastService, "baseMapper", boastMapper);
     }
 
@@ -99,6 +104,34 @@ class BoastServiceImplTest {
         assertEquals(dto.getStakeAmount(), result.getStakeAmount());
         assertEquals(BOAST_ONGOING, result.getResult());
         assertEquals(1L, result.getUserId());
+    }
+
+    @Test
+    void bet_success_deductsStakeAndWritesBoastBetWalletLog() {
+        Boast boast = new Boast();
+        boast.setId(7L);
+        boast.setUserId(1L);
+        boast.setResult(BOAST_ONGOING);
+        boast.setDeadline(LocalDateTime.now().plusHours(1));
+        boast.setStakeAmount(100L);
+        when(boastMapper.selectOne(any())).thenReturn(boast);
+        when(boastBetService.count(any())).thenReturn(0L);
+        UserStat stat = new UserStat();
+        stat.setCoin(200L);
+        when(userStatService.getById(2L)).thenReturn(stat);
+        when(boastBetService.save(any(BoastBet.class))).thenReturn(true);
+        when(userStatService.getBaseMapper()).thenReturn(userStatMapper);
+        when(userStatMapper.update(isNull(), any())).thenReturn(1);
+
+        BoastBet result = boastService.bet(7L, BOAST_OPTION_TWO, 2L);
+
+        assertNotNull(result);
+        assertEquals(7L, result.getBoastId());
+        assertEquals(2L, result.getUserId());
+        assertEquals(BOAST_OPTION_TWO, result.getOptionType());
+        assertEquals(100L, result.getAmount());
+        assertEquals(BOAST_BET_UNSETTLED, result.getResult());
+        verify(walletService).changeCoin(eq(2L), eq(-100L), eq(WALLET_BOAST_BET), eq(7L), anyString(), anyString());
     }
 
     @Test

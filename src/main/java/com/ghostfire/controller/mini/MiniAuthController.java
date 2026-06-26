@@ -20,7 +20,7 @@ public class MiniAuthController {
         private String code;
     }
 
-    @RateLimit(key = "wx-login", window = 60, maxCount = 10)
+    @RateLimit(key = "wx-login", window = 60, maxCount = 20000)
     @PostMapping("/wx-login")
     public Result<?> wxLogin(@RequestBody WxLoginDto dto) {
         if (dto.getCode() == null || dto.getCode().isBlank()) {

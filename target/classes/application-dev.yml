@@ -2,7 +2,7 @@
 spring:
   datasource:
     driver-class-name: org.postgresql.Driver
-    url: jdbc:postgresql://localhost:5432/Forum use only
+    url: jdbc:postgresql://localhost:5432/ghostfire
     username: postgres
     password: ${DB_PASSWORD:123456}
   data:
@@ -17,11 +17,6 @@ spring:
           max-wait: -1ms
           max-idle: 10
           min-idle: 0
-  rabbitmq:
-    host: localhost
-    port: 5672
-    username: guest
-    password: guest
 
 logging:
   level:

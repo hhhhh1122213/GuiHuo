@@ -14,7 +14,7 @@ public class MiniCheckInController {
 
     private final CheckInService checkInService;
 
-    @RateLimit(key = "mini-checkin", window = 86400, maxCount = 1)
+    @RateLimit(key = "mini-checkin", window = 86400, maxCount = 100)
     @PostMapping
     public Result<?> checkIn() {
         long userId = StpUtil.getLoginIdAsLong();

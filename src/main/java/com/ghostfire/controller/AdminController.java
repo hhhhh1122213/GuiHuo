@@ -11,8 +11,11 @@ import com.ghostfire.entity.*;
 import com.ghostfire.service.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.format.annotation.DateTimeFormat.ISO;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -29,6 +32,10 @@ public class AdminController {
     private final UserStatService userStatService;
     private final CommentService commentService;
     private final MedalService medalService;
+    private final WalletReconciliationService walletReconciliationService;
+    private final RankingService rankingService;
+    private final ReportService reportService;
+    private final MessageService messageService;
 
     // ==================== 用户管理 ====================
 
@@ -123,6 +130,9 @@ public class AdminController {
         }
         post.setIsTop(!Boolean.TRUE.equals(post.getIsTop()));
         postService.updateById(post);
+        // 更新热榜分数
+        rankingService.updateScore(RankingService.RANK_HOT_POSTS, id,
+                RankingService.calcHotScore(post));
         return Result.ok(post.getIsTop());
     }
 
@@ -135,6 +145,9 @@ public class AdminController {
         }
         post.setIsEssence(!Boolean.TRUE.equals(post.getIsEssence()));
         postService.updateById(post);
+        // 更新热榜分数
+        rankingService.updateScore(RankingService.RANK_HOT_POSTS, id,
+                RankingService.calcHotScore(post));
         return Result.ok(post.getIsEssence());
     }
 
@@ -234,5 +247,91 @@ public class AdminController {
         data.put("totalCategories", totalCategories);
 
         return Result.ok(data);
+    }
+
+    // ==================== 钱包对账管理 ====================
+
+    /** 对账记录列表（分页，支持按日期和状态筛选） */
+    @GetMapping("/reconciliation/list")
+    public Result<Page<WalletReconciliation>> reconciliationList(
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) @DateTimeFormat(iso = ISO.DATE) LocalDate checkDate,
+            @RequestParam(required = false) String status) {
+        return Result.ok(walletReconciliationService.page(page, size, checkDate, status));
+    }
+
+    /** 手动触发全量对账 */
+    @PostMapping("/reconciliation/trigger")
+    public Result<Map<String, Object>> triggerReconciliation() {
+        int mismatches = walletReconciliationService.reconcileAll("MANUAL");
+        Map<String, Object> result = new HashMap<>();
+        result.put("status", "completed");
+        result.put("mismatchCount", mismatches);
+        return Result.ok(result);
+    }
+
+    // ==================== 内容审核管理 ====================
+
+    /** 待审核帖子列表 */
+    @GetMapping("/posts/pending")
+    public Result<Page<Post>> pendingPosts(
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        Page<Post> postPage = postService.page(new Page<>(page, size),
+                new LambdaQueryWrapper<Post>()
+                        .eq(Post::getStatus, Constant.POST_STATUS_PENDING)
+                        .orderByAsc(Post::getCreateTime));
+        return Result.ok(postPage);
+    }
+
+    /** 审核通过 */
+    @PutMapping("/posts/{id}/approve")
+    public Result<?> approvePost(@PathVariable Long id) {
+        Post post = postService.getById(id);
+        if (post == null) return Result.fail("帖子不存在");
+        if (post.getStatus() != Constant.POST_STATUS_PENDING) {
+            return Result.fail("该帖子不在待审核状态");
+        }
+        postService.approvePost(post);
+        return Result.ok();
+    }
+
+    /** 审核拒绝 */
+    @PutMapping("/posts/{id}/reject")
+    public Result<?> rejectPost(@PathVariable Long id, @RequestBody Map<String, String> body) {
+        Post post = postService.getById(id);
+        if (post == null) return Result.fail("帖子不存在");
+        post.setStatus(Constant.POST_STATUS_REJECTED);
+        postService.updateById(post);
+        messageService.send(0L, post.getUserId(),
+                "帖子《" + post.getTitle() + "》审核未通过：" + body.get("reason"),
+                Constant.MSG_TYPE_SYSTEM, post.getId());
+        return Result.ok();
+    }
+
+    /** 举报列表（按状态筛选） */
+    @GetMapping("/reports")
+    public Result<Page<Report>> reportList(
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) Integer status) {
+        LambdaQueryWrapper<Report> wrapper = new LambdaQueryWrapper<Report>()
+                .orderByDesc(Report::getCreateTime);
+        if (status != null) {
+            wrapper.eq(Report::getStatus, status);
+        }
+        return Result.ok(reportService.page(new Page<>(page, size), wrapper));
+    }
+
+    /** 处理举报 */
+    @PutMapping("/reports/{id}/handle")
+    public Result<?> handleReport(@PathVariable Long id, @RequestBody Map<String, Object> body) {
+        Long handlerId = StpUtil.getLoginIdAsLong();
+        Integer status = (Integer) body.get("status");
+        String action = (String) body.get("action");
+        String result = (String) body.get("result");
+        reportService.handle(id, handlerId, status, action, result);
+        return Result.ok();
     }
 }

@@ -104,6 +104,23 @@ public interface Constant {
     /** 点赞评论 */
     int LIKE_COMMENT = 2;
 
+    /** 帖子状态（扩展） */
+    int POST_STATUS_PENDING = 2;   // 待审核
+    int POST_STATUS_REJECTED = 3;  // 审核拒绝
+
+    /** 评论状态（扩展） */
+    int COMMENT_STATUS_PENDING = 2;
+    int COMMENT_STATUS_REJECTED = 3;
+
+    /** 举报目标类型 */
+    int REPORT_TARGET_POST = 1;
+    int REPORT_TARGET_COMMENT = 2;
+
+    /** 举报状态 */
+    int REPORT_STATUS_PENDING = 0;
+    int REPORT_STATUS_CONFIRMED = 1;
+    int REPORT_STATUS_DISMISSED = 2;
+
     /** 金币奖励 */
     /** 发帖奖励 */
     long COIN_POST_REWARD = 10L;

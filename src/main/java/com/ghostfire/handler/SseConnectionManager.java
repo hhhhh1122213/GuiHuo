@@ -16,8 +16,12 @@ public class SseConnectionManager {
     private final Map<Long, CopyOnWriteArrayList<SseEmitter>> connections = new ConcurrentHashMap<>();
 
     public void register(Long userId, SseEmitter emitter) {
-        connections.computeIfAbsent(userId, k -> new CopyOnWriteArrayList<>()).add(emitter);
-        log.debug("SSE 连接注册: userId={}, 当前连接数={}", userId, connections.get(userId).size());
+        CopyOnWriteArrayList<SseEmitter> list = connections.computeIfAbsent(userId, k -> new CopyOnWriteArrayList<>());
+        if (list.size() >= 5) {
+            throw new RuntimeException("同一用户 SSE 连接数超限");
+        }
+        list.add(emitter);
+        log.debug("SSE 连接注册: userId={}, 当前连接数={}", userId, list.size());
     }
 
     public void remove(Long userId, SseEmitter emitter) {

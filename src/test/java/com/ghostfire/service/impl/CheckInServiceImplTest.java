@@ -6,6 +6,7 @@ import com.ghostfire.entity.UserStat;
 import com.ghostfire.mapper.UserCheckInMapper;
 import com.ghostfire.service.MedalService;
 import com.ghostfire.service.UserStatService;
+import com.ghostfire.service.WalletService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -26,13 +27,14 @@ class CheckInServiceImplTest {
 
     @Mock UserStatService userStatService;
     @Mock MedalService medalService;
+    @Mock WalletService walletService;
     @Mock UserCheckInMapper userCheckInMapper;
 
     CheckInServiceImpl checkInService;
 
     @BeforeEach
     void setUp() {
-        checkInService = new CheckInServiceImpl(userStatService, medalService);
+        checkInService = new CheckInServiceImpl(userStatService, medalService, walletService);
         ReflectionTestUtils.setField(checkInService, "baseMapper", userCheckInMapper);
     }
 

@@ -75,6 +75,6 @@ Controller → Service → Mapper(BaseMapper<T>) → PostgreSQL
 
 ## 项目状态
 
-- 19 个模块 79 个接口，全部实现完毕
+- 26 个 Controller（19 个 Web 端 + 7 个微信小程序端），105 个接口，全部实现完毕
 - 20 个单元测试通过（5 个测试类）
 - 详细文档见 `docs/接口文档.md`

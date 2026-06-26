@@ -40,6 +40,8 @@ services:
     # 数据持久化，容器删除后数据不丢失
     volumes:
       - pgdata:/var/lib/postgresql/data
+      # 初始化脚本：容器首次启动时自动执行
+      - ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
 
   # ==================== Redis 缓存 ====================
   # 使用 alpine 精简版，体积小启动快
@@ -47,16 +49,6 @@ services:
     image: redis:7-alpine
     ports:
       - "6379:6379"
-
-  # ==================== RabbitMQ 消息队列 ====================
-  rabbitmq:
-    image: rabbitmq:3-management
-    ports:
-      - "5672:5672"
-      - "15672:15672"
-    environment:
-      RABBITMQ_DEFAULT_USER: guest
-      RABBITMQ_DEFAULT_PASS: guest
 
 # 声明命名卷，用于持久化 PostgreSQL 数据
 volumes:

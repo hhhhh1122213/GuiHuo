@@ -21,7 +21,25 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(NotLoginException.class)
     @ResponseStatus(HttpStatus.UNAUTHORIZED)
     public Result<?> handleNotLogin(NotLoginException e) {
-        return Result.fail(401, e.getMessage());
+        String msg;
+        switch (e.getType()) {
+            case NotLoginException.NOT_TOKEN:
+                msg = "未提供登录凭证，请先登录";
+                break;
+            case NotLoginException.TOKEN_TIMEOUT:
+                msg = "登录已过期，请重新登录";
+                break;
+            case NotLoginException.BE_REPLACED:
+                msg = "账号已在其它设备登录";
+                break;
+            case NotLoginException.KICK_OUT:
+                msg = "账号已被踢下线";
+                break;
+            default:
+                msg = "未登录或 token 已过期";
+                break;
+        }
+        return Result.fail(401, msg);
     }
 
     @ExceptionHandler(NotPermissionException.class)

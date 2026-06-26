@@ -1,4 +1,9 @@
 /Users/abc/workspace/Ghost Fire Forum/server/src/test/java/com/ghostfire/service/impl/RedPacketServiceImplTest.java
+/Users/abc/workspace/Ghost Fire Forum/server/src/test/java/com/ghostfire/service/impl/WalletReconciliationServiceImplTest.java
+/Users/abc/workspace/Ghost Fire Forum/server/src/test/java/com/ghostfire/service/impl/WalletServiceImplTest.java
+/Users/abc/workspace/Ghost Fire Forum/server/src/test/java/com/ghostfire/controller/BoastControllerTest.java
+/Users/abc/workspace/Ghost Fire Forum/server/src/test/java/com/ghostfire/service/impl/UserStatServiceImplTest.java
+/Users/abc/workspace/Ghost Fire Forum/server/src/test/java/com/ghostfire/service/impl/CommentServiceImplTest.java
 /Users/abc/workspace/Ghost Fire Forum/server/src/test/java/com/ghostfire/service/impl/BoastServiceImplTest.java
 /Users/abc/workspace/Ghost Fire Forum/server/src/test/java/com/ghostfire/service/impl/PostServiceImplTest.java
 /Users/abc/workspace/Ghost Fire Forum/server/src/test/java/com/ghostfire/controller/UploadControllerTest.java

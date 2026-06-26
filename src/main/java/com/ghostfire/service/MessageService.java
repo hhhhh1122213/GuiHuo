@@ -22,6 +22,7 @@ public interface MessageService extends IService<Message> {
     int unreadCount(Long userId);
 
     void markRead(Long messageId, Long userId);
+    void markReadBatch(Long userId, List<Long> ids);
     void delete(Long messageId, Long userId);
     void markAllRead(long id);
 

@@ -13,6 +13,7 @@ import com.ghostfire.service.BoastBetService;
 import com.ghostfire.service.BoastService;
 import com.ghostfire.service.MedalService;
 import com.ghostfire.service.UserStatService;
+import com.ghostfire.service.WalletService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
@@ -29,6 +30,7 @@ public class BoastServiceImpl extends ServiceImpl<BoastMapper, Boast> implements
     private final UserStatService userStatService;
     private final MedalService medalService;
     private final BoastBetService boastBetService;
+    private final WalletService walletService;
 
     @Override
     @Transactional
@@ -65,7 +67,8 @@ public class BoastServiceImpl extends ServiceImpl<BoastMapper, Boast> implements
         save(boasts);
 
         // 写钱包流水
-        userStatService.addCoin(userId, -dto.getStakeAmount(), WALLET_BOAST_BET, boasts.getId());
+        walletService.changeCoin(userId, -dto.getStakeAmount(), WALLET_BOAST_BET, boasts.getId(),
+                "BOAST_CREATE:" + boasts.getId(), "吹牛创建押金");
 
         return boasts;
     }
@@ -101,8 +104,11 @@ public class BoastServiceImpl extends ServiceImpl<BoastMapper, Boast> implements
     @Override
     @Transactional
     public BoastBet bet(Long boastId, Integer optionType, Long userId) {
-        // 校验挑战存在
-        Boast boast = getById(boastId);
+        // 校验挑战存在（SELECT FOR UPDATE 防并发）
+        Boast boast = getBaseMapper().selectOne(
+                new LambdaQueryWrapper<Boast>()
+                        .eq(Boast::getId, boastId)
+                        .last("FOR UPDATE"));
         if (boast == null) {
             throw new RuntimeException("挑战不存在");
         }
@@ -147,7 +153,6 @@ public class BoastServiceImpl extends ServiceImpl<BoastMapper, Boast> implements
         bet.setUserId(userId);
         bet.setOptionType(optionType);
         bet.setAmount(boast.getStakeAmount());
-        bet.setResult(BOAST_BET_UNSETTLED);
         try {
             boastBetService.save(bet);
         } catch (DuplicateKeyException e) {
@@ -155,13 +160,64 @@ public class BoastServiceImpl extends ServiceImpl<BoastMapper, Boast> implements
         }
 
         // 写钱包流水
-        userStatService.addCoin(userId, -boast.getStakeAmount(), WALLET_BOAST_BET, boastId);
+        walletService.changeCoin(userId, -boast.getStakeAmount(), WALLET_BOAST_BET, boastId,
+                "BOAST_BET:" + bet.getId(), "吹牛下注");
 
         // 更新 user_stat 吹牛次数
         userStatService.getBaseMapper().update(null,
                 new LambdaUpdateWrapper<UserStat>()
                         .eq(UserStat::getUserId, userId)
                         .setSql("boast_count = boast_count + 1"));
+
+        // 检查是否答对：答对立即结算
+        boolean isCorrect = optionType == boast.getCorrectOption();
+        if (isCorrect) {
+            // 挑战者赢，立即结算
+            bet.setResult(BOAST_BET_WIN);
+            boastBetService.updateById(bet);
+
+            // 挑战者获得赌注的90%
+            long winAmount = (long) (boast.getStakeAmount() * 0.9);
+            walletService.changeCoin(userId, winAmount, WALLET_BOAST_WIN, boastId,
+                    "BOAST_WIN:" + bet.getId(), "吹牛立即获胜");
+
+            // 更新赢家统计
+            userStatService.getBaseMapper().update(null,
+                    new LambdaUpdateWrapper<UserStat>()
+                            .eq(UserStat::getUserId, userId)
+                            .setSql("boast_win_count = boast_win_count + 1")
+                            .setSql("boast_win_total = boast_win_total + {0}", winAmount));
+            UserStat winnerStat = userStatService.getById(userId);
+            if (winnerStat != null && (winnerStat.getBoastBestWin() == null || winAmount > winnerStat.getBoastBestWin())) {
+                userStatService.getBaseMapper().update(null,
+                        new LambdaUpdateWrapper<UserStat>()
+                                .eq(UserStat::getUserId, userId)
+                                .setSql("boast_best_win = {0}", winAmount));
+            }
+
+            // 更新发布者统计（最惨失利）
+            UserStat creatorStat = userStatService.getById(boast.getUserId());
+            if (creatorStat != null && (creatorStat.getBoastWorstLoss() == null || boast.getStakeAmount() > creatorStat.getBoastWorstLoss())) {
+                userStatService.getBaseMapper().update(null,
+                        new LambdaUpdateWrapper<UserStat>()
+                                .eq(UserStat::getUserId, boast.getUserId())
+                                .setSql("boast_worst_loss = {0}", boast.getStakeAmount()));
+            }
+
+            // 更新挑战状态为挑战者赢
+            LambdaUpdateWrapper<Boast> updateBoast = new LambdaUpdateWrapper<Boast>()
+                    .eq(Boast::getId, boastId)
+                    .set(Boast::getResult, BOAST_CALLER_WIN);
+            update(updateBoast);
+
+            // 检查勋章
+            medalService.checkAutoAward(userId);
+            medalService.checkAutoAward(boast.getUserId());
+        } else {
+            // 答错，记录为未结算
+            bet.setResult(BOAST_BET_UNSETTLED);
+            boastBetService.updateById(bet);
+        }
 
         return bet;
     }
@@ -217,7 +273,8 @@ public class BoastServiceImpl extends ServiceImpl<BoastMapper, Boast> implements
                 long winAmount = (long) (betAmount * 0.9);
 
                 // 加金币 + 写流水
-                userStatService.addCoin(betUserId, winAmount, WALLET_BOAST_WIN, id);
+                walletService.changeCoin(betUserId, winAmount, WALLET_BOAST_WIN, id,
+                        "BOAST_WIN_SETTLE:" + bet.getId(), "吹牛结算获胜");
 
                 // 更新赢家统计
                 userStatService.getBaseMapper().update(null,
@@ -240,7 +297,8 @@ public class BoastServiceImpl extends ServiceImpl<BoastMapper, Boast> implements
                 // 输家：失去赌注，发布者获得
 
                 // 发布者加金币 + 写流水
-                userStatService.addCoin(boast.getUserId(), betAmount, WALLET_BOAST_WIN, id);
+                walletService.changeCoin(boast.getUserId(), betAmount, WALLET_BOAST_WIN, id,
+                        "BOAST_LOSE_SETTLE:" + bet.getId(), "吹牛输家结算");
 
                 // 更新输家统计
                 // boast_worst_loss = MAX(boast_worst_loss, betAmount)
@@ -261,7 +319,8 @@ public class BoastServiceImpl extends ServiceImpl<BoastMapper, Boast> implements
 
         // 处理创建者赌注：赢了退还本金+更新统计，输了记录最惨失利
         if (result == BOAST_CREATOR_WIN) {
-            userStatService.addCoin(boast.getUserId(), boast.getStakeAmount(), WALLET_BOAST_WIN, id);
+            walletService.changeCoin(boast.getUserId(), boast.getStakeAmount(), WALLET_BOAST_WIN, id,
+                    "BOAST_CREATOR_WIN:" + id, "吹牛创建者获胜");
             userStatService.getBaseMapper().update(null,
                     new LambdaUpdateWrapper<UserStat>()
                             .eq(UserStat::getUserId, boast.getUserId())

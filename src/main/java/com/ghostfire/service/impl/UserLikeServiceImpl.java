@@ -17,6 +17,7 @@ import com.ghostfire.service.PostService;
 import com.ghostfire.service.RankingService;
 import com.ghostfire.service.UserLikeService;
 import com.ghostfire.service.UserStatService;
+import com.ghostfire.service.WalletService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DuplicateKeyException;
@@ -35,6 +36,7 @@ public class UserLikeServiceImpl extends ServiceImpl<UserLikeMapper, UserLike> i
     private final RankingService rankingService;
     private final BloomFilterHelper bloomFilter;
     private final MessageService messageService;
+    private final WalletService walletService;
 
     @Override
     @Transactional
@@ -75,7 +77,8 @@ public class UserLikeServiceImpl extends ServiceImpl<UserLikeMapper, UserLike> i
                     userStatService.save(authorStat);
                 }
                 // 加金币 + 写流水 + 更新被赞数
-                userStatService.addCoin(post.getUserId(), Constant.COIN_LIKE_REWARD, Constant.WALLET_LIKE, targetId);
+                walletService.changeCoin(post.getUserId(), Constant.COIN_LIKE_REWARD, Constant.WALLET_LIKE, targetId,
+                        "LIKE:" + targetId + ":" + userId, "点赞奖励");
                 userStatService.getBaseMapper().update(null,
                         new LambdaUpdateWrapper<UserStat>()
                                 .eq(UserStat::getUserId, post.getUserId())
@@ -96,6 +99,9 @@ public class UserLikeServiceImpl extends ServiceImpl<UserLikeMapper, UserLike> i
                         log.warn("点赞通知发送失败: userId={}, authorId={}", userId, post.getUserId(), e);
                     }
                 }
+                // 更新帖子热榜分数
+                rankingService.updateScore(RankingService.RANK_HOT_POSTS, targetId,
+                        RankingService.calcHotScore(post));
             }
         } else if (targetType == Constant.LIKE_COMMENT) {
             commentService.getBaseMapper().update(null,
@@ -128,7 +134,8 @@ public class UserLikeServiceImpl extends ServiceImpl<UserLikeMapper, UserLike> i
                             .setSql("like_count = GREATEST(like_count - 1, 0)"));
             Post post = postService.getById(targetId);
             if (post != null) {
-                userStatService.addCoin(post.getUserId(), -Constant.COIN_LIKE_REWARD, Constant.WALLET_LIKE, targetId);
+                walletService.changeCoin(post.getUserId(), -Constant.COIN_LIKE_REWARD, Constant.WALLET_LIKE, targetId,
+                        "UNLIKE:" + targetId + ":" + userId, "取消点赞");
                 userStatService.getBaseMapper().update(null,
                         new LambdaUpdateWrapper<UserStat>()
                                 .eq(UserStat::getUserId, post.getUserId())
@@ -139,6 +146,9 @@ public class UserLikeServiceImpl extends ServiceImpl<UserLikeMapper, UserLike> i
                     rankingService.updateScore(RankingService.RANK_LIKE, post.getUserId(),
                             updatedStat.getLikeCount() != null ? updatedStat.getLikeCount() : 0);
                 }
+                // 更新帖子热榜分数
+                rankingService.updateScore(RankingService.RANK_HOT_POSTS, targetId,
+                        RankingService.calcHotScore(post));
             }
         } else if (targetType == Constant.LIKE_COMMENT) {
             commentService.getBaseMapper().update(null,

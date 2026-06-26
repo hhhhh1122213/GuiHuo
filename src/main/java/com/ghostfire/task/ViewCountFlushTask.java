@@ -3,6 +3,7 @@ package com.ghostfire.task;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.ghostfire.entity.Post;
 import com.ghostfire.service.PostService;
+import com.ghostfire.service.RankingService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -20,6 +21,7 @@ public class ViewCountFlushTask {
 
     private final RedisTemplate<String, Object> redisTemplate;
     private final PostService postService;
+    private final RankingService rankingService;
 
     private static final String VIEW_COUNT_PREFIX = "post:views:";
 
@@ -57,5 +59,14 @@ public class ViewCountFlushTask {
         }
 
         log.debug("浏览量刷库完成，同步 {} 篇帖子", viewCounts.size());
+
+        // 更新热榜分数
+        for (Long postId : viewCounts.keySet()) {
+            Post post = postService.getById(postId);
+            if (post != null) {
+                rankingService.updateScore(RankingService.RANK_HOT_POSTS, postId,
+                        RankingService.calcHotScore(post));
+            }
+        }
     }
 }

@@ -6,6 +6,7 @@ import com.ghostfire.mapper.RedPacketMapper;
 import com.ghostfire.mapper.RedPacketRecordMapper;
 import com.ghostfire.service.MedalService;
 import com.ghostfire.service.UserStatService;
+import com.ghostfire.service.WalletService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -28,12 +29,13 @@ class RedPacketServiceImplTest {
     @Mock UserStatService userStatService;
     @Mock MedalService medalService;
     @Mock BloomFilterHelper bloomFilter;
+    @Mock WalletService walletService;
 
     RedPacketServiceImpl redPacketService;
 
     @BeforeEach
     void setUp() {
-        redPacketService = new RedPacketServiceImpl(userStatService, medalService, redPacketRecordMapper, bloomFilter);
+        redPacketService = new RedPacketServiceImpl(userStatService, medalService, redPacketRecordMapper, bloomFilter, walletService);
         ReflectionTestUtils.setField(redPacketService, "baseMapper", redPacketMapper);
     }
 

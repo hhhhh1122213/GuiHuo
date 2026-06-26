@@ -11,6 +11,7 @@ import com.ghostfire.service.MedalService;
 import com.ghostfire.service.PostTagService;
 import com.ghostfire.service.RankingService;
 import com.ghostfire.service.UserStatService;
+import com.ghostfire.service.WalletService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -19,8 +20,12 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.apache.ibatis.session.Configuration;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.StreamOperations;
 import org.springframework.data.redis.core.ValueOperations;
+import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.test.util.ReflectionTestUtils;
+
+import java.util.Collections;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -36,13 +41,15 @@ class PostServiceImplTest {
     @Mock RankingService rankingService;
     @Mock PostTagService postTagService;
     @Mock RedisTemplate<String, Object> redisTemplate;
+    @Mock ZSetOperations<String, Object> zSetOps;
+    @Mock WalletService walletService;
 
     PostServiceImpl postService;
 
     @BeforeEach
     void setUp() {
         TableInfoHelper.initTableInfo(new MapperBuilderAssistant(new Configuration(), ""), Post.class);
-        postService = new PostServiceImpl(userStatService, medalService, rankingService, postTagService, redisTemplate);
+        postService = new PostServiceImpl(userStatService, medalService, rankingService, postTagService, redisTemplate, walletService);
         ReflectionTestUtils.setField(postService, "baseMapper", postMapper);
     }
 
@@ -62,6 +69,9 @@ class PostServiceImplTest {
 
     @Test
     void pageFeed_hotSortsByEngagement() {
+        when(redisTemplate.opsForZSet()).thenReturn(zSetOps);
+        when(zSetOps.reverseRange(RankingService.RANK_HOT_POSTS, 0, 19)).thenReturn(Collections.emptySet());
+
         Page<Post> mockPage = new Page<>(1, 20);
         when(postMapper.selectPage(any(Page.class), any())).thenReturn(mockPage);
 

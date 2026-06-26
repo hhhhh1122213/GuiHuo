@@ -79,7 +79,7 @@ public class PostController {
         return Result.ok(post);
     }
 
-    @RateLimit(key = "search", maxCount = 30)
+    @RateLimit(key = "search", window = 60, maxCount = 10000)
     @GetMapping("/search")
     public Result<IPage<PostSummaryVO>> search(
             @RequestParam @NotBlank(message = "搜索关键词不能为空") @Size(max = 50, message = "搜索关键词不能超过50个字符") String keyword,

@@ -13,6 +13,7 @@ import static com.ghostfire.common.Constant.*;
 public interface WalletLogMapper {
 
     @Mapping(target = "typeName", source = "type")
+    @Mapping(target = "currentBalance", source = "balanceAfter")
     WalletLogVO toVO(UserWalletLog log);
 
     List<WalletLogVO> toVOList(List<UserWalletLog> logs);

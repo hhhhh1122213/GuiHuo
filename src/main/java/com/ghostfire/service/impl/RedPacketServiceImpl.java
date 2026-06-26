@@ -12,6 +12,7 @@ import com.ghostfire.mapper.RedPacketRecordMapper;
 import com.ghostfire.service.MedalService;
 import com.ghostfire.service.RedPacketService;
 import com.ghostfire.service.UserStatService;
+import com.ghostfire.service.WalletService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
@@ -30,6 +31,7 @@ public class RedPacketServiceImpl extends ServiceImpl<RedPacketMapper, RedPacket
     private final MedalService medalService;
     private final RedPacketRecordMapper redPacketRecordMapper;
     private final BloomFilterHelper bloomFilter;
+    private final WalletService walletService;
 
     @Override
     @Transactional
@@ -49,7 +51,8 @@ public class RedPacketServiceImpl extends ServiceImpl<RedPacketMapper, RedPacket
         save(redPacket);
 
         // 扣余额 + 写钱包流水
-        userStatService.addCoin(userId, -redPacket.getTotalAmount(), WALLET_RED_PACKET_SEND, redPacket.getId());
+        walletService.changeCoin(userId, -redPacket.getTotalAmount(), WALLET_RED_PACKET_SEND, redPacket.getId(),
+                "RED_PACKET_SEND:" + redPacket.getId(), "发送红包");
 
         return redPacket;
     }
@@ -134,7 +137,8 @@ public class RedPacketServiceImpl extends ServiceImpl<RedPacketMapper, RedPacket
         }
 
         // 加金币 + 写流水
-        userStatService.addCoin(userId, amount, WALLET_RED_PACKET_RECEIVE, packetId);
+        walletService.changeCoin(userId, amount, WALLET_RED_PACKET_RECEIVE, packetId,
+                "RED_PACKET_RECEIVE:" + packetId + ":" + userId, "抢到红包");
         medalService.checkAutoAward(userId);
 
         return record;

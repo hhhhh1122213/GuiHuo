@@ -28,6 +28,9 @@ public interface PostService extends IService<Post> {
 
     Post createPost(Long userId, PostDto dto);
 
+    /** 审核通过待审核帖子，补发金币和更新统计 */
+    void approvePost(Post post);
+
     void deletePost(Post post, Long userId);
     void editPost(long id, PostDto dto,Post  post);
 }

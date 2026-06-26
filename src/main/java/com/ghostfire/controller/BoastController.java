@@ -44,23 +44,15 @@ public class BoastController {
     @PostMapping("/bet")
     public Result<?> bet(@RequestParam Long boastId, @RequestParam Integer optionType) {
         long userId = StpUtil.getLoginIdAsLong();
-        try {
-            BoastBet bet = boastService.bet(boastId, optionType, userId);
-            return Result.ok(bet);
-        } catch (RuntimeException e) {
-            return Result.fail(e.getMessage());
-        }
+        BoastBet bet = boastService.bet(boastId, optionType, userId);
+        return Result.ok(bet);
     }
 
     /** 结算挑战（发布者或管理员操作，1=发布者赢, 2=挑战者赢） */
     @PostMapping("/settle/{id}")
     public Result<?> settle(@PathVariable Long id, @RequestParam Integer result) {
         long userId = StpUtil.getLoginIdAsLong();
-        try {
-            Boast boast = boastService.settle(id, result, userId);
-            return Result.ok(boast);
-        } catch (RuntimeException e) {
-            return Result.fail(e.getMessage());
-        }
+        Boast boast = boastService.settle(id, result, userId);
+        return Result.ok(boast);
     }
 }

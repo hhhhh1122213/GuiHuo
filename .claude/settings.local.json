@@ -59,7 +59,15 @@
       "Bash(python3 -m json.tool)",
       "Bash(\"/e/RabbitMQ/rabbitmq_server-4.2.5/sbin/rabbitmqctl.bat\" status *)",
       "Bash(/e/RabbitMQ/rabbitmq_server-4.2.5/sbin/rabbitmq-server.bat *)",
-      "Bash(/e/RabbitMQ/rabbitmq_server-4.2.5/sbin/rabbitmq-service.bat install *)"
+      "Bash(/e/RabbitMQ/rabbitmq_server-4.2.5/sbin/rabbitmq-service.bat install *)",
+      "Bash(./mvnw test *)",
+      "Bash(git commit -m 'fix: 拆分全文搜索的 count 查询，解决 COUNT\\(*\\) 与 ORDER BY ts_rank 冲突 *)",
+      "Bash(mvn package *)",
+      "Bash(docker-compose logs *)",
+      "Bash(docker-compose ps *)",
+      "Read(//Users/abc/.claude/skills/**)",
+      "Read(//Users/abc/workspace/Ghost Fire Forum/.claude/**)",
+      "Read(//Users/abc/.claude/plugins/**)"
     ]
   }
 }

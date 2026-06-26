@@ -61,6 +61,14 @@ public class MessageController {
         messageService.markRead(id, userId);
         return Result.ok();
     }
+
+    @PostMapping("/read-batch")
+    public Result<?> markReadBatch(@RequestBody List<Long> ids) {
+        long userId = StpUtil.getLoginIdAsLong();
+        messageService.markReadBatch(userId, ids);
+        return Result.ok();
+    }
+
     @PutMapping("/read-all")
     public Result<?> markAllRead() {
         long userId = StpUtil.getLoginIdAsLong();

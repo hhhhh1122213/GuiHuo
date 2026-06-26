@@ -9,6 +9,7 @@ import com.ghostfire.mapper.UserCheckInMapper;
 import com.ghostfire.service.CheckInService;
 import com.ghostfire.service.MedalService;
 import com.ghostfire.service.UserStatService;
+import com.ghostfire.service.WalletService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
@@ -22,6 +23,7 @@ public class CheckInServiceImpl extends ServiceImpl<UserCheckInMapper, UserCheck
 
     private final UserStatService userStatService;
     private final MedalService medalService;
+    private final WalletService walletService;
 
     @Override
     @Transactional
@@ -36,7 +38,8 @@ public class CheckInServiceImpl extends ServiceImpl<UserCheckInMapper, UserCheck
             throw new RuntimeException("今天已签到");
         }
         // 加金币 + 写流水 + 更新签到数
-        userStatService.addCoin(userId, Constant.COIN_CHECKIN_REWARD, Constant.WALLET_SIGN_IN, checkIn.getId());
+        walletService.changeCoin(userId, Constant.COIN_CHECKIN_REWARD, Constant.WALLET_SIGN_IN, checkIn.getId(),
+                "SIGN_IN:" + checkIn.getId(), "签到奖励");
         userStatService.getBaseMapper().update(null,
                 new LambdaUpdateWrapper<UserStat>()
                         .eq(UserStat::getUserId, userId)

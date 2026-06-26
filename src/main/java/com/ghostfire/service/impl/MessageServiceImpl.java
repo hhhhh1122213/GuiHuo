@@ -7,7 +7,6 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.ghostfire.common.Constant;
 import com.ghostfire.entity.Message;
 import com.ghostfire.entity.User;
-import com.ghostfire.handler.SseConnectionManager;
 import com.ghostfire.mapper.MessageMapper;
 import com.ghostfire.service.MessageService;
 import com.ghostfire.service.UserService;
@@ -15,13 +14,13 @@ import com.ghostfire.vo.ConversationVO;
 import com.ghostfire.vo.NotificationCategoryVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -29,7 +28,11 @@ import java.util.Map;
 public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> implements MessageService {
 
     private final UserService userService;
-    private final SseConnectionManager sseConnectionManager;
+    private final NotificationPublisher notificationPublisher;
+    private final RedisTemplate<String, Object> redisTemplate;
+
+    private static final String UNREAD_CACHE_PREFIX = "notify:unread:";
+    private static final Duration UNREAD_CACHE_TTL = Duration.ofDays(7);
 
     @Override
     public void send(Long fromUserId, Long toUserId, String content) {
@@ -52,12 +55,20 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
         msg.setFromDeleted(false);
         msg.setToDeleted(false);
         save(msg);
-        // SSE 实时推送
-        try {
-            sseConnectionManager.sendToUser(toUserId, getUnreadStats(toUserId));
-        } catch (Exception e) {
-            log.debug("SSE 推送失败: userId={}", toUserId, e);
+
+        // Redis Hash 增量更新未读统计
+        if (type != null) {
+            String key = UNREAD_CACHE_PREFIX + toUserId;
+            String field = typeToKey(type);
+            if (field != null) {
+                redisTemplate.opsForHash().increment(key, field, 1);
+                redisTemplate.opsForHash().increment(key, "total", 1);
+                redisTemplate.expire(key, UNREAD_CACHE_TTL);
+            }
         }
+
+        // 异步 SSE 推送（通过事件发布解耦，避免主线程被 IO 阻塞）
+        notificationPublisher.notifyUser(toUserId);
     }
 
     @Override
@@ -91,10 +102,30 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
     @Override
     public void markRead(Long messageId, Long userId) {
         Message msg = getById(messageId);
-        if (msg != null && msg.getToUserId().equals(userId)) {
+        if (msg != null && msg.getToUserId().equals(userId) && msg.getStatus() == Constant.MSG_UNREAD) {
             msg.setStatus(Constant.MSG_READ);
             updateById(msg);
+
+            // Redis 缓存同步扣减
+            String field = typeToKey(msg.getType());
+            if (field != null) {
+                String key = UNREAD_CACHE_PREFIX + userId;
+                redisTemplate.opsForHash().increment(key, field, -1);
+                redisTemplate.opsForHash().increment(key, "total", -1);
+            }
         }
+    }
+
+    @Override
+    public void markReadBatch(Long userId, List<Long> ids) {
+        if (ids == null || ids.isEmpty()) return;
+        update(new LambdaUpdateWrapper<Message>()
+                .in(Message::getId, ids)
+                .eq(Message::getToUserId, userId)
+                .eq(Message::getStatus, Constant.MSG_UNREAD)
+                .set(Message::getStatus, Constant.MSG_READ));
+        // 批量已读后清除缓存
+        redisTemplate.delete(UNREAD_CACHE_PREFIX + userId);
     }
 
     @Override
@@ -116,6 +147,10 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
         }
         if (canDelete) {
             update(w);
+            // 收件人删除未读消息 → 清除缓存
+            if (userId.equals(msg.getToUserId()) && msg.getStatus() == Constant.MSG_UNREAD) {
+                redisTemplate.delete(UNREAD_CACHE_PREFIX + userId);
+            }
         }
     }
 
@@ -126,6 +161,8 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
                 .eq(Message::getToDeleted, false)
                 .eq(Message::getStatus, Constant.MSG_UNREAD)
                 .set(Message::getStatus, Constant.MSG_READ));
+        // 批量已读后清除缓存，下次读取时从 DB 重新加载
+        redisTemplate.delete(UNREAD_CACHE_PREFIX + id);
     }
 
     @Override
@@ -162,6 +199,8 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
                 .eq(Message::getToDeleted, false)
                 .eq(Message::getStatus, Constant.MSG_UNREAD)
                 .set(Message::getStatus, Constant.MSG_READ));
+        // 批量已读后清除缓存，下次读取时从 DB 重新加载
+        redisTemplate.delete(UNREAD_CACHE_PREFIX + userId);
     }
 
     @Override
@@ -246,19 +285,61 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
                 .eq(Message::getToDeleted, false)
                 .eq(Message::getStatus, Constant.MSG_UNREAD)
                 .set(Message::getStatus, Constant.MSG_READ));
+        // 批量已读后清除缓存，下次读取时从 DB 重新加载
+        redisTemplate.delete(UNREAD_CACHE_PREFIX + userId);
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public Map<String, Integer> getUnreadStats(Long userId) {
+        // 优先读 Redis 缓存
+        String key = UNREAD_CACHE_PREFIX + userId;
+        Map<Object, Object> cached = redisTemplate.opsForHash().entries(key);
+        if (!cached.isEmpty()) {
+            return cached.entrySet().stream()
+                    .collect(Collectors.toMap(
+                            e -> (String) e.getKey(),
+                            e -> ((Number) e.getValue()).intValue(),
+                            (a, b) -> a,
+                            LinkedHashMap::new));
+        }
+
+        // 缓存未命中 → 从 DB 加载
         Map<String, Integer> stats = new LinkedHashMap<>();
-        stats.put("mentionPost", unreadCountByType(userId, Constant.MSG_TYPE_MENTION_POST));
-        stats.put("mentionComment", unreadCountByType(userId, Constant.MSG_TYPE_MENTION_COMMENT));
-        stats.put("like", unreadCountByType(userId, Constant.MSG_TYPE_LIKE));
-        stats.put("follow", unreadCountByType(userId, Constant.MSG_TYPE_FOLLOW));
-        stats.put("private", unreadCountByType(userId, Constant.MSG_TYPE_PRIVATE));
-        stats.put("system", unreadCountByType(userId, Constant.MSG_TYPE_SYSTEM));
-        stats.put("total", unreadCount(userId));
+        stats.put("mentionPost", 0);
+        stats.put("mentionComment", 0);
+        stats.put("like", 0);
+        stats.put("follow", 0);
+        stats.put("private", 0);
+        stats.put("system", 0);
+
+        int total = 0;
+        for (Map<String, Object> row : baseMapper.selectUnreadStats(userId)) {
+            Integer type = ((Number) row.get("type")).intValue();
+            Integer cnt = ((Number) row.get("cnt")).intValue();
+            total += cnt;
+            String field = typeToKey(type);
+            if (field != null) stats.put(field, cnt);
+        }
+        stats.put("total", total);
+
+        // 回写 Redis 缓存
+        redisTemplate.opsForHash().putAll(key, stats);
+        redisTemplate.expire(key, UNREAD_CACHE_TTL);
+
         return stats;
+    }
+
+    private static String typeToKey(Integer type) {
+        return switch (type) {
+            case Constant.MSG_TYPE_MENTION_POST -> "mentionPost";
+            case Constant.MSG_TYPE_MENTION_COMMENT -> "mentionComment";
+            case Constant.MSG_TYPE_LIKE -> "like";
+            case Constant.MSG_TYPE_FOLLOW -> "follow";
+            case Constant.MSG_TYPE_PRIVATE -> "private";
+            case Constant.MSG_TYPE_SYSTEM -> "system";
+            default -> null;
+        };
     }
 
 }

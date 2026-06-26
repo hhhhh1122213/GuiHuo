@@ -7,10 +7,12 @@ import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.ghostfire.common.Constant;
 import com.ghostfire.entity.Comment;
 import com.ghostfire.entity.Post;
+import com.ghostfire.handler.SensitiveWordFilter;
 import com.ghostfire.mapper.CommentMapper;
 import com.ghostfire.service.CommentService;
 import com.ghostfire.service.MessageService;
 import com.ghostfire.service.PostService;
+import com.ghostfire.service.RankingService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -25,6 +27,8 @@ public class CommentServiceImpl extends ServiceImpl<CommentMapper, Comment> impl
 
     private final PostService postService;
     private final MessageService messageService;
+    private final RankingService rankingService;
+    private final SensitiveWordFilter sensitiveWordFilter;
 
 
     @Override
@@ -65,12 +69,19 @@ public class CommentServiceImpl extends ServiceImpl<CommentMapper, Comment> impl
         if (post == null) {
             throw new RuntimeException("帖子不存在");
         }
+
+        // 敏感词过滤（评论只做替换/拦截，不做人工审核）
+        SensitiveWordFilter.FilterResult filterResult = sensitiveWordFilter.filter(content);
+        if (!filterResult.pass()) {
+            throw new RuntimeException("评论内容包含违规信息");
+        }
+
         Comment comment = new Comment();
         comment.setPostId(postId);
         comment.setUserId(userId);
         comment.setParentId(parentId);
         comment.setReplyUserId(replyUserId);
-        comment.setContent(content);
+        comment.setContent(filterResult.filteredContent());
         comment.setLikeCount(0);
         comment.setStatus(Constant.COMMENT_STATUS_NORMAL);
         save(comment);
@@ -95,6 +106,12 @@ public class CommentServiceImpl extends ServiceImpl<CommentMapper, Comment> impl
                 new LambdaUpdateWrapper<Post>()
                         .eq(Post::getId, postId)
                         .setSql("comment_count = comment_count + 1"));
+        // 更新帖子热榜分数
+        Post updatedPost = postService.getById(postId);
+        if (updatedPost != null) {
+            rankingService.updateScore(RankingService.RANK_HOT_POSTS, postId,
+                    RankingService.calcHotScore(updatedPost));
+        }
         return comment;
     }
 
@@ -108,5 +125,11 @@ public class CommentServiceImpl extends ServiceImpl<CommentMapper, Comment> impl
                 new LambdaUpdateWrapper<Post>()
                         .eq(Post::getId, comment.getPostId())
                         .setSql("comment_count = GREATEST(comment_count - 1, 0)"));
+        // 更新帖子热榜分数
+        Post updatedPost = postService.getById(comment.getPostId());
+        if (updatedPost != null) {
+            rankingService.updateScore(RankingService.RANK_HOT_POSTS, comment.getPostId(),
+                    RankingService.calcHotScore(updatedPost));
+        }
     }
 }

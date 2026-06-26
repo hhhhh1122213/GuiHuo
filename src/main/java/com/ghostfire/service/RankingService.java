@@ -1,10 +1,13 @@
 package com.ghostfire.service;
 
+import com.ghostfire.entity.Post;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
 
@@ -17,6 +20,18 @@ public class RankingService {
     public static final String RANK_COIN = "rank:coin";
     public static final String RANK_LIKE = "rank:like";
     public static final String RANK_POST = "rank:post";
+    public static final String RANK_HOT_POSTS = "rank:hot:posts";
+
+    public static double calcHotScore(Post post) {
+        long ageHours = Duration.between(post.getCreateTime(), LocalDateTime.now()).toHours();
+        if (ageHours < 0) ageHours = 0;
+        return (post.getLikeCount() != null ? post.getLikeCount() : 0) * 5
+             + (post.getCommentCount() != null ? post.getCommentCount() : 0) * 8
+             + (post.getViewCount() != null ? post.getViewCount() : 0) * 1
+             + (Boolean.TRUE.equals(post.getIsEssence()) ? 200 : 0)
+             + (Boolean.TRUE.equals(post.getIsTop()) ? 500 : 0)
+             - ageHours * 2;
+    }
 
     /** 更新用户在排行榜中的分数 */
     public void updateScore(String key, Long userId, double score) {

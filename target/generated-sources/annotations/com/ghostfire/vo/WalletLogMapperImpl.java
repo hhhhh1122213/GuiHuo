@@ -8,7 +8,7 @@ import org.springframework.stereotype.Component;
 
 @Generated(
     value = "org.mapstruct.ap.MappingProcessor",
-    date = "2026-06-03T08:41:23+0800",
+    date = "2026-06-26T17:35:57+0800",
     comments = "version: 1.5.5.Final, compiler: javac, environment: Java 21.0.11 (Eclipse Adoptium)"
 )
 @Component
@@ -23,9 +23,9 @@ public class WalletLogMapperImpl implements WalletLogMapper {
         WalletLogVO walletLogVO = new WalletLogVO();
 
         walletLogVO.setTypeName( mapType( log.getType() ) );
+        walletLogVO.setCurrentBalance( log.getBalanceAfter() );
         walletLogVO.setId( log.getId() );
         walletLogVO.setAmount( log.getAmount() );
-        walletLogVO.setCurrentBalance( log.getCurrentBalance() );
         walletLogVO.setType( mapType( log.getType() ) );
         walletLogVO.setCreateTime( log.getCreateTime() );
 

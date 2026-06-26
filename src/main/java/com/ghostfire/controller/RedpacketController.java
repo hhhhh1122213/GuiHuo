@@ -33,7 +33,7 @@ public class RedpacketController {
         RedPacket packet = redpacketService.create(userId, dto);
         return Result.ok(packet);
     }
-    @RateLimit(key = "grab")
+    @RateLimit(key = "grab", window = 60, maxCount = 10000)
     @PostMapping("/grab/{packetId}")
     public Result<?> grab(@PathVariable Long packetId) {
         Long userId = StpUtil.getLoginIdAsLong();

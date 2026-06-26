@@ -42,17 +42,38 @@ CREATE TABLE user_wallet_log (
     id              BIGSERIAL    PRIMARY KEY,
     user_id         BIGINT       NOT NULL REFERENCES sys_user(id),
     amount          BIGINT       NOT NULL,
+    balance_before  BIGINT       NOT NULL DEFAULT 0,   -- 变动前余额快照
     current_balance BIGINT       NOT NULL,
     type            VARCHAR(50)  NOT NULL,
     ref_id          BIGINT       NULL,
+    biz_key         VARCHAR(128) NULL,                  -- 全局唯一业务流水号（幂等防重）
+    remark          VARCHAR(255) NULL,                  -- 备注说明
     create_time     TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
 );
+CREATE UNIQUE INDEX IF NOT EXISTS idx_wallet_log_biz_key
+    ON user_wallet_log (biz_key) WHERE biz_key IS NOT NULL;
+
+-- 4. 钱包对账记录表
+CREATE TABLE wallet_reconciliation (
+    id              BIGSERIAL    PRIMARY KEY,
+    check_date      DATE         NOT NULL,                        -- 对账日期
+    user_id         BIGINT       NOT NULL,                        -- 用户ID
+    stat_coin       BIGINT       NOT NULL,                        -- user_stat.coin 账面余额
+    sum_log_amount  BIGINT       NOT NULL,                        -- SUM(流水.amount) 流水余额
+    diff            BIGINT       NOT NULL,                        -- 差额 = stat_coin - sum_log_amount
+    status          VARCHAR(20)  NOT NULL DEFAULT 'MISMATCH',    -- PASS / MISMATCH / FIXED
+    remark          VARCHAR(255) NULL,                           -- 备注
+    checked_by      VARCHAR(20)  NOT NULL,                        -- SCHEDULED / MANUAL
+    created_at      TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX idx_recon_date ON wallet_reconciliation (check_date);
+CREATE INDEX idx_recon_status ON wallet_reconciliation (status);
 
 -- =============================================
 -- 二、互动与荣誉模块
 -- =============================================
 
--- 4. 签到记录表
+-- 5. 签到记录表
 CREATE TABLE user_check_in (
     id          BIGSERIAL PRIMARY KEY,
     user_id     BIGINT    NOT NULL REFERENCES sys_user(id),
@@ -61,7 +82,7 @@ CREATE TABLE user_check_in (
     UNIQUE (user_id, check_date)
 );
 
--- 5. 勋章表
+-- 6. 勋章表
 CREATE TABLE medal (
     id          BIGSERIAL    PRIMARY KEY,
     name        VARCHAR(50)  NOT NULL UNIQUE,
@@ -72,7 +93,7 @@ CREATE TABLE medal (
     rule_value  INT          NULL
 );
 
--- 6. 用户勋章关联表
+-- 7. 用户勋章关联表
 CREATE TABLE user_medal (
     user_id     BIGINT    NOT NULL REFERENCES sys_user(id),
     medal_id    BIGINT    NOT NULL REFERENCES medal(id),
@@ -80,7 +101,7 @@ CREATE TABLE user_medal (
     PRIMARY KEY (user_id, medal_id)
 );
 
--- 6. 用户关注关系表
+-- 8. 用户关注关系表
 CREATE TABLE user_follow (
     follower_id BIGINT    NOT NULL REFERENCES sys_user(id) ON DELETE CASCADE,
     followee_id BIGINT    NOT NULL REFERENCES sys_user(id) ON DELETE CASCADE,
@@ -93,7 +114,7 @@ CREATE TABLE user_follow (
 -- 三、内容核心模块（需在红包模块之前创建，因为红包引用帖子）
 -- =============================================
 
--- 7. 板块分类表
+-- 8. 板块分类表
 CREATE TABLE category (
     id          BIGSERIAL    PRIMARY KEY,
     name        VARCHAR(50)  NOT NULL UNIQUE,
@@ -102,7 +123,7 @@ CREATE TABLE category (
     create_time TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
 );
 
--- 8. 帖子主表
+-- 11. 帖子主表
 CREATE TABLE post (
     id            BIGSERIAL    PRIMARY KEY,
     user_id       BIGINT       NOT NULL REFERENCES sys_user(id),
@@ -119,20 +140,22 @@ CREATE TABLE post (
     update_time   TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
 );
 
--- 9. 标签表
+-- 10. 标签表
 CREATE TABLE tag (
     id   BIGSERIAL   PRIMARY KEY,
     name VARCHAR(30) NOT NULL UNIQUE
 );
 
--- 10. 帖子标签关联表
+-- 11. 帖子标签关联表
 CREATE TABLE post_tag (
     post_id BIGINT NOT NULL REFERENCES post(id) ON DELETE CASCADE,
     tag_id  BIGINT NOT NULL REFERENCES tag(id) ON DELETE CASCADE,
     PRIMARY KEY (post_id, tag_id)
 );
 
--- 11. 评论表
+CREATE INDEX idx_post_tag_tag_id ON post_tag (tag_id, post_id);
+
+-- 12. 评论表
 CREATE TABLE comment (
     id            BIGSERIAL PRIMARY KEY,
     post_id       BIGINT    NOT NULL REFERENCES post(id),
@@ -155,7 +178,16 @@ CREATE TABLE user_like (
     UNIQUE (user_id, target_id, target_type)
 );
 
--- 13. 收藏帖子表
+-- 16. 帖子点赞表（新版，替代 user_like）
+CREATE TABLE t_like (
+    id          BIGSERIAL PRIMARY KEY,
+    user_id     BIGINT    NOT NULL REFERENCES sys_user(id),
+    post_id     BIGINT    NOT NULL REFERENCES post(id),
+    create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (user_id, post_id)
+);
+
+-- 15. 收藏帖子表
 CREATE TABLE user_favorite (
     id          BIGSERIAL PRIMARY KEY,
     user_id     BIGINT    NOT NULL REFERENCES sys_user(id),
@@ -168,7 +200,7 @@ CREATE TABLE user_favorite (
 -- 四、红包模块
 -- =============================================
 
--- 13. 红包主表
+-- 18. 红包主表
 CREATE TABLE red_packet (
     id           BIGSERIAL    PRIMARY KEY,
     user_id      BIGINT       NOT NULL REFERENCES sys_user(id),
@@ -182,7 +214,7 @@ CREATE TABLE red_packet (
     expire_time  TIMESTAMP    NULL
 );
 
--- 14. 抢红包记录表
+-- 17. 抢红包记录表
 CREATE TABLE red_packet_record (
     id          BIGSERIAL PRIMARY KEY,
     packet_id   BIGINT    NOT NULL REFERENCES red_packet(id),
@@ -196,7 +228,7 @@ CREATE TABLE red_packet_record (
 -- 五、吹牛打赌模块
 -- =============================================
 
--- 15. 吹牛主表
+-- 16. 吹牛主表
 CREATE TABLE boast (
     id             BIGSERIAL    PRIMARY KEY,
     user_id        BIGINT       NOT NULL REFERENCES sys_user(id),
@@ -211,7 +243,7 @@ CREATE TABLE boast (
     create_time    TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
 );
 
--- 16. 挑战者下注记录表
+-- 18. 挑战者下注记录表
 CREATE TABLE boast_bet (
     id          BIGSERIAL PRIMARY KEY,
     boast_id    BIGINT    NOT NULL REFERENCES boast(id),
@@ -238,7 +270,7 @@ CREATE TABLE draft (
     update_time TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
 );
 
--- 18. 消息表
+-- 23. 消息表
 CREATE TABLE t_message (
     id           BIGSERIAL PRIMARY KEY,
     from_user_id BIGINT    NOT NULL REFERENCES sys_user(id),
@@ -263,6 +295,9 @@ CREATE INDEX idx_post_category_id ON post (category_id);
 CREATE INDEX idx_post_user_id ON post (user_id);
 CREATE INDEX idx_post_create_time ON post (create_time DESC);
 CREATE INDEX idx_post_status_top_essence ON post (status, is_top, is_essence);
+
+-- 帖子标签关联：按标签筛选帖子（selectByTag 高频查询；主键 (post_id, tag_id) 无法命中 tag_id 最左前缀，需补反向索引）
+CREATE INDEX idx_post_tag_tag_id ON post_tag (tag_id, post_id);
 
 -- 评论：按帖子查评论、楼中楼查询
 CREATE INDEX idx_comment_post_id ON comment (post_id);
